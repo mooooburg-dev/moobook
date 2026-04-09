@@ -15,7 +15,23 @@ const replicate = MOCK_MODE
   ? null
   : new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
 
-const MODEL_ID = "black-forest-labs/flux-kontext-pro";
+// AI_MODEL 환경변수로 모델 전환 (기본: kontext-pro)
+// "kontext-pro" | "flux-pulid"
+const AI_MODEL = process.env.AI_MODEL || "kontext-pro";
+
+const MODELS = {
+  "kontext-pro": {
+    id: "black-forest-labs/flux-kontext-pro",
+    useVersion: false,
+  },
+  "flux-pulid": {
+    id: "bytedance/flux-pulid",
+    useVersion: true,
+    version: "8baa7ef2255075b46f4d91cd238c21d31181b3e6a864463f967960bb0112525b",
+  },
+} as const;
+
+const currentModel = MODELS[AI_MODEL as keyof typeof MODELS] ?? MODELS["kontext-pro"];
 
 const PLACEHOLDER_IMAGE = (pageNumber: number) =>
   `https://placehold.co/768x1024/e8d5f5/7c3aed?text=Page+${pageNumber}`;
@@ -75,19 +91,55 @@ async function generateSinglePage(
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      console.log(`${tag} 생성 시작 (시도 ${attempt + 1}/3)`);
+      console.log(`${tag} 생성 시작 [${AI_MODEL}] (시도 ${attempt + 1}/3)`);
 
-      const output = await replicate!.run(MODEL_ID as `${string}/${string}`, {
-        input: {
-          prompt,
-          input_image: photoUrl,
-          aspect_ratio: "3:4",
-          output_format: "png",
-          safety_tolerance: 2,
-        },
-      });
+      let output: unknown;
 
-      // FileOutput.toString()이 URL 문자열을 반환함
+      if (currentModel.useVersion) {
+        // community model (flux-pulid 등): version 기반 predictions.create
+        const prediction = await replicate!.predictions.create({
+          version: (currentModel as typeof MODELS["flux-pulid"]).version,
+          input: {
+            prompt,
+            main_face_image: photoUrl,
+            width: 768,
+            height: 1024,
+            num_outputs: 1,
+            num_steps: 20,
+            guidance_scale: 4,
+            id_weight: 1,
+            output_format: "png",
+            negative_prompt:
+              "bad quality, worst quality, text, signature, watermark, extra limbs, low resolution, deformed, blurry, multiple people",
+          },
+          wait: true,
+        });
+
+        if (prediction.status === "failed") {
+          throw new Error(`Prediction failed: ${prediction.error}`);
+        }
+
+        if (prediction.status === "succeeded" && prediction.output) {
+          output = (prediction.output as string[])[0];
+        } else if (prediction.status === "starting" || prediction.status === "processing") {
+          const result = await replicate!.wait(prediction, {});
+          output = (result.output as string[] | undefined)?.[0];
+        } else {
+          throw new Error(`예상치 못한 상태: ${prediction.status}`);
+        }
+      } else {
+        // official model (kontext-pro): model 기반 run
+        output = await replicate!.run(currentModel.id as `${string}/${string}`, {
+          input: {
+            prompt,
+            input_image: photoUrl,
+            aspect_ratio: "3:4",
+            output_format: "png",
+            safety_tolerance: 2,
+          },
+        });
+      }
+
       const url = String(output);
 
       if (url.startsWith("http")) {
