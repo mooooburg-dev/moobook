@@ -70,7 +70,7 @@ async function generateSinglePage(
   childName: string,
   bookId: string
 ): Promise<string> {
-  const prompt = page.prompt.replace("{name}", childName);
+  const prompt = page.prompt;
   const tag = `[Replicate] p${page.pageNumber} (${bookId.slice(0, 8)})`;
 
   for (let attempt = 0; attempt < 3; attempt++) {
