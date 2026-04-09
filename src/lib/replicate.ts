@@ -7,18 +7,14 @@ const replicate = MOCK_MODE
   ? null
   : new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
 
-const MODEL_ID = "lucataco/flux-dev-ip-adapter" as `${string}/${string}`;
+const MODEL_ID = "lucataco/flux-dev-ip-adapter";
 
 const PLACEHOLDER_IMAGE = (pageNumber: number) =>
   `https://placehold.co/768x1024/e8d5f5/7c3aed?text=Page+${pageNumber}`;
 
-// Mock 이미지 URL (Replicate 토큰 없을 때 사용)
 const MOCK_IMAGES = Array.from({ length: 12 }, (_, i) =>
   PLACEHOLDER_IMAGE(i + 1)
 );
-
-// Rate limit 대응: 페이지 간 호출 간격 (ms)
-const REQUEST_INTERVAL_MS = 12_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -30,31 +26,37 @@ interface GeneratePagesInput {
 }
 
 /**
- * 429 에러에서 retry_after 값 추출
+ * 429/rate limit 에러 판별
  */
-function getRetryAfter(err: unknown): number | null {
-  if (
-    err &&
-    typeof err === "object" &&
-    "response" in err &&
-    (err as { response: Response }).response
-  ) {
-    const res = (err as { response: Response }).response;
-    const retryHeader = res.headers?.get?.("retry-after");
-    if (retryHeader) return (parseInt(retryHeader, 10) + 1) * 1000;
-  }
-  return null;
-}
-
 function is429Error(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    err.message?.includes("429")
-  );
+  if (err && typeof err === "object") {
+    // ApiError.response.status === 429
+    const resp = (err as { response?: { status?: number } }).response;
+    if (resp?.status === 429) return true;
+    // 메시지 fallback
+    if (err instanceof Error && err.message?.includes("429")) return true;
+  }
+  return false;
 }
 
 /**
- * 단일 페이지 이미지 생성 (재시도 1회 + rate limit 대기 포함)
+ * 에러에서 retry_after 초 추출
+ */
+function getRetryAfterMs(err: unknown): number {
+  if (err && typeof err === "object") {
+    const resp = (err as { response?: Response }).response;
+    if (resp?.headers) {
+      const val = resp.headers.get?.("retry-after");
+      if (val) return (parseInt(val, 10) + 2) * 1000;
+    }
+  }
+  return 20_000; // 기본 20초 대기
+}
+
+/**
+ * 단일 페이지 이미지 생성
+ * - predictions.create + wait 방식으로 폴링 최소화
+ * - 429 시 retry_after 대기 후 재시도 1회
  */
 async function generateSinglePage(
   page: ScenarioPage,
@@ -63,10 +65,12 @@ async function generateSinglePage(
   bookId: string
 ): Promise<string> {
   const prompt = page.prompt.replace("{name}", childName);
+  const tag = `[Replicate] p${page.pageNumber} (${bookId.slice(0, 8)})`;
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const output = await replicate!.run(MODEL_ID, {
+      const prediction = await replicate!.predictions.create({
+        model: MODEL_ID,
         input: {
           prompt,
           main_face_image: photoUrl,
@@ -75,25 +79,47 @@ async function generateSinglePage(
           num_outputs: 1,
           guidance_scale: 7.5,
         },
+        wait: true,
       });
 
-      const urls = output as string[];
-      if (urls[0]) return urls[0];
-      throw new Error("빈 응답");
-    } catch (err) {
-      const tag = `[Replicate] 페이지 ${page.pageNumber} (bookId: ${bookId})`;
+      if (prediction.status === "failed") {
+        throw new Error(`Prediction failed: ${prediction.error}`);
+      }
 
+      // succeeded인 경우 output에서 URL 추출
+      if (prediction.status === "succeeded" && prediction.output) {
+        const output = prediction.output as string[];
+        if (output[0]) {
+          console.log(`${tag} 생성 성공`);
+          return output[0];
+        }
+      }
+
+      // 아직 processing 중이면 직접 폴링
+      if (prediction.status === "starting" || prediction.status === "processing") {
+        console.log(`${tag} 아직 처리 중, 폴링 시작...`);
+        const result = await replicate!.wait(prediction, {});
+        const output = result.output as string[] | undefined;
+        if (output?.[0]) {
+          console.log(`${tag} 생성 성공 (폴링)`);
+          return output[0];
+        }
+        throw new Error(`Prediction 완료됐지만 output 없음: ${result.status}`);
+      }
+
+      throw new Error(`예상치 못한 상태: ${prediction.status}`);
+    } catch (err) {
       if (attempt === 0) {
-        // 429면 retry_after만큼 대기 후 재시도
         if (is429Error(err)) {
-          const waitMs = getRetryAfter(err) ?? 15_000;
-          console.warn(`${tag} rate limited, ${waitMs}ms 대기 후 재시도...`);
+          const waitMs = getRetryAfterMs(err);
+          console.warn(`${tag} rate limited, ${waitMs / 1000}s 대기 후 재시도`);
           await sleep(waitMs);
         } else {
-          console.warn(`${tag} 생성 실패, 재시도...`, err);
+          console.warn(`${tag} 실패, 10s 후 재시도`);
+          await sleep(10_000);
         }
       } else {
-        console.error(`${tag} 재시도도 실패, placeholder 대체`, err);
+        console.error(`${tag} 재시도 실패 → placeholder 대체`);
       }
     }
   }
@@ -102,7 +128,7 @@ async function generateSinglePage(
 }
 
 /**
- * preview용 3페이지만 생성하여 반환
+ * preview용 3페이지 생성
  */
 export async function generatePreviewPages({
   photoUrl,
@@ -111,18 +137,15 @@ export async function generatePreviewPages({
   bookId,
 }: GeneratePagesInput): Promise<string[]> {
   if (MOCK_MODE) {
-    console.log(
-      `[MOCK] Replicate 토큰 없음 - mock 이미지로 대체 (bookId: ${bookId})`
-    );
+    console.log(`[MOCK] mock 이미지 반환 (bookId: ${bookId})`);
     return MOCK_IMAGES.slice(0, 3);
   }
 
   const previewPages = scenario.pages.slice(0, 3);
   const imageUrls: string[] = [];
 
-  for (let i = 0; i < previewPages.length; i++) {
-    if (i > 0) await sleep(REQUEST_INTERVAL_MS);
-    const url = await generateSinglePage(previewPages[i], photoUrl, childName, bookId);
+  for (const page of previewPages) {
+    const url = await generateSinglePage(page, photoUrl, childName, bookId);
     imageUrls.push(url);
   }
 
@@ -130,7 +153,7 @@ export async function generatePreviewPages({
 }
 
 /**
- * 나머지 페이지(4~12) 생성하여 반환
+ * 나머지 페이지(4~12) 생성
  */
 export async function generateRemainingPages({
   photoUrl,
@@ -145,9 +168,8 @@ export async function generateRemainingPages({
   const remainingPages = scenario.pages.slice(3);
   const imageUrls: string[] = [];
 
-  for (let i = 0; i < remainingPages.length; i++) {
-    if (i > 0) await sleep(REQUEST_INTERVAL_MS);
-    const url = await generateSinglePage(remainingPages[i], photoUrl, childName, bookId);
+  for (const page of remainingPages) {
+    const url = await generateSinglePage(page, photoUrl, childName, bookId);
     imageUrls.push(url);
   }
 
