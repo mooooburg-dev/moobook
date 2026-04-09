@@ -13,6 +13,7 @@ export default function BookDetailPage() {
   const router = useRouter();
   const [book, setBook] = useState<Book | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showLoading, setShowLoading] = useState(true);
   const generateTriggered = useRef(false);
 
   const fetchBook = useCallback(async () => {
@@ -45,6 +46,11 @@ export default function BookDetailPage() {
       const bookData = await fetchBook();
       if (!bookData) return;
 
+      if (bookData.status === "preview_ready" || bookData.status === "paid") {
+        // 이미 완료된 상태면 로딩 화면 스킵
+        setShowLoading(false);
+      }
+
       // pending 상태면 AI 생성 트리거 (fire-and-forget, await 안 함)
       if (bookData.status === "pending" && !generateTriggered.current) {
         generateTriggered.current = true;
@@ -68,7 +74,11 @@ export default function BookDetailPage() {
   // 상태 폴링 (3초 간격)
   useEffect(() => {
     if (!book) return;
-    if (book.status === "preview_ready" || book.status === "paid") return;
+    if (book.status === "preview_ready" || book.status === "paid") {
+      // 생성 완료 → 로딩 해제
+      setShowLoading(false);
+      return;
+    }
 
     const interval = setInterval(fetchBook, 3000);
     return () => clearInterval(interval);
@@ -84,7 +94,7 @@ export default function BookDetailPage() {
     );
   }
 
-  if (!book || book.status === "pending" || book.status === "generating") {
+  if (!book || showLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20">
         <GenerationProgress />
