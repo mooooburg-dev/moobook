@@ -45,28 +45,21 @@ export default function BookDetailPage() {
       const bookData = await fetchBook();
       if (!bookData) return;
 
-      // pending 상태면 AI 생성 트리거
+      // pending 상태면 AI 생성 트리거 (fire-and-forget, await 안 함)
       if (bookData.status === "pending" && !generateTriggered.current) {
         generateTriggered.current = true;
 
-        try {
-          const res = await fetch("/api/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              bookId: bookData.id,
-              photoUrl: bookData.photo_url,
-              theme: bookData.theme,
-            }),
-          });
-
-          if (!res.ok) {
-            const errData = await res.json();
-            console.error("AI 생성 트리거 실패:", errData.error);
-          }
-        } catch (err) {
+        fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bookId: bookData.id,
+            photoUrl: bookData.photo_url,
+            theme: bookData.theme,
+          }),
+        }).catch((err) => {
           console.error("AI 생성 요청 실패:", err);
-        }
+        });
       }
     }
     init();
