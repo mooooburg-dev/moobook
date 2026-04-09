@@ -84,30 +84,10 @@ export default function BookDetailPage() {
     );
   }
 
-  if (!book || book.status === "pending") {
+  if (!book || book.status === "pending" || book.status === "generating") {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20">
-        <GenerationProgress
-          totalPages={12}
-          completedPages={0}
-          status="pending"
-        />
-      </div>
-    );
-  }
-
-  if (book.status === "generating") {
-    const completedPages = book.all_pages
-      ? book.all_pages.filter((url) => url !== null).length
-      : 0;
-
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-20">
-        <GenerationProgress
-          totalPages={12}
-          completedPages={completedPages}
-          status="generating"
-        />
+        <GenerationProgress status={book?.status || "pending"} />
       </div>
     );
   }
