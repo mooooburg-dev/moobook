@@ -15,23 +15,10 @@ const replicate = MOCK_MODE
   ? null
   : new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
 
-// AI_MODEL 환경변수로 모델 전환 (기본: kontext-pro)
-// "kontext-pro" | "flux-pulid"
-const AI_MODEL = process.env.AI_MODEL || "kontext-pro";
-
-const MODELS = {
-  "kontext-pro": {
-    id: "black-forest-labs/flux-kontext-pro",
-    useVersion: false,
-  },
-  "flux-pulid": {
-    id: "bytedance/flux-pulid",
-    useVersion: true,
-    version: "8baa7ef2255075b46f4d91cd238c21d31181b3e6a864463f967960bb0112525b",
-  },
-} as const;
-
-const currentModel = MODELS[AI_MODEL as keyof typeof MODELS] ?? MODELS["kontext-pro"];
+// 2단계 파이프라인 모델
+const ILLUSTRATION_MODEL = "black-forest-labs/flux-kontext-pro";
+const FACE_SWAP_MODEL_VERSION =
+  "278a81e7ebb22db98bcba54de985d22cc1abeead2754eb1f2af717247be69b34"; // codeplugtech/face-swap
 
 const PLACEHOLDER_IMAGE = (pageNumber: number) =>
   `https://placehold.co/768x1024/e8d5f5/7c3aed?text=Page+${pageNumber}`;
@@ -49,9 +36,6 @@ interface GeneratePagesInput {
   bookId: string;
 }
 
-/**
- * 429/rate limit 에러 판별
- */
 function is429Error(err: unknown): boolean {
   if (err && typeof err === "object") {
     const resp = (err as { response?: { status?: number } }).response;
@@ -61,9 +45,6 @@ function is429Error(err: unknown): boolean {
   return false;
 }
 
-/**
- * 에러에서 retry_after 초 추출
- */
 function getRetryAfterMs(err: unknown): number {
   if (err && typeof err === "object") {
     const resp = (err as { response?: Response }).response;
@@ -76,9 +57,89 @@ function getRetryAfterMs(err: unknown): number {
 }
 
 /**
- * 단일 페이지 이미지 생성 (flux-kontext-pro)
- * - input_image + prompt로 얼굴 유지 + 스타일 변환
- * - 재시도 최대 3회, 429 시 retry_after 대기
+ * Step 1: flux-kontext-pro로 동화풍 일러스트 생성
+ */
+async function generateIllustration(
+  prompt: string,
+  photoUrl: string,
+  tag: string
+): Promise<string> {
+  const output = await replicate!.run(
+    ILLUSTRATION_MODEL as `${string}/${string}`,
+    {
+      input: {
+        prompt,
+        input_image: photoUrl,
+        aspect_ratio: "3:4",
+        output_format: "png",
+        safety_tolerance: 2,
+      },
+    }
+  );
+
+  const url = String(output);
+  if (!url.startsWith("http")) {
+    throw new Error(`일러스트 생성 실패: 유효하지 않은 URL`);
+  }
+
+  console.log(`${tag} [Step1] 일러스트 생성 완료`);
+  return url;
+}
+
+/**
+ * Step 2: codeplugtech/face-swap으로 얼굴 합성
+ * 실패 시 1단계 일러스트를 그대로 반환 (fallback)
+ */
+async function swapFace(
+  illustrationUrl: string,
+  photoUrl: string,
+  tag: string
+): Promise<string> {
+  try {
+    const prediction = await replicate!.predictions.create({
+      version: FACE_SWAP_MODEL_VERSION,
+      input: {
+        input_image: illustrationUrl, // 타겟 (일러스트)
+        swap_image: photoUrl, // 소스 (원본 사진의 얼굴)
+      },
+      wait: true,
+    });
+
+    if (prediction.status === "failed") {
+      throw new Error(`Face swap failed: ${prediction.error}`);
+    }
+
+    let outputUrl: string | undefined;
+
+    if (prediction.status === "succeeded" && prediction.output) {
+      outputUrl = String(prediction.output);
+    } else if (
+      prediction.status === "starting" ||
+      prediction.status === "processing"
+    ) {
+      const result = await replicate!.wait(prediction, {});
+      outputUrl = result.output ? String(result.output) : undefined;
+    }
+
+    if (outputUrl?.startsWith("http")) {
+      console.log(`${tag} [Step2] face swap 완료`);
+      return outputUrl;
+    }
+
+    throw new Error("face swap output URL 없음");
+  } catch (err) {
+    console.warn(
+      `${tag} [Step2] face swap 실패, 일러스트 원본 사용 (${err instanceof Error ? err.message : err})`
+    );
+    return illustrationUrl;
+  }
+}
+
+/**
+ * 단일 페이지 이미지 생성 (2단계 파이프라인)
+ * Step 1: flux-kontext-pro → 동화풍 일러스트
+ * Step 2: codeplugtech/face-swap → 얼굴 합성
+ * 재시도 최대 3회, Step 2 실패 시 Step 1 결과로 fallback
  */
 async function generateSinglePage(
   page: ScenarioPage,
@@ -91,63 +152,20 @@ async function generateSinglePage(
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      console.log(`${tag} 생성 시작 [${AI_MODEL}] (시도 ${attempt + 1}/3)`);
+      console.log(`${tag} 생성 시작 (시도 ${attempt + 1}/3)`);
 
-      let output: unknown;
+      // Step 1: 일러스트 생성
+      const illustrationUrl = await generateIllustration(
+        prompt,
+        photoUrl,
+        tag
+      );
 
-      if (currentModel.useVersion) {
-        // community model (flux-pulid 등): version 기반 predictions.create
-        const prediction = await replicate!.predictions.create({
-          version: (currentModel as typeof MODELS["flux-pulid"]).version,
-          input: {
-            prompt,
-            main_face_image: photoUrl,
-            width: 768,
-            height: 1024,
-            num_outputs: 1,
-            num_steps: 20,
-            guidance_scale: 4,
-            id_weight: 1,
-            output_format: "png",
-            negative_prompt:
-              "bad quality, worst quality, text, signature, watermark, extra limbs, low resolution, deformed, blurry, multiple people",
-          },
-          wait: true,
-        });
+      // Step 2: 얼굴 합성 (실패 시 일러스트 그대로 사용)
+      const finalUrl = await swapFace(illustrationUrl, photoUrl, tag);
 
-        if (prediction.status === "failed") {
-          throw new Error(`Prediction failed: ${prediction.error}`);
-        }
-
-        if (prediction.status === "succeeded" && prediction.output) {
-          output = (prediction.output as string[])[0];
-        } else if (prediction.status === "starting" || prediction.status === "processing") {
-          const result = await replicate!.wait(prediction, {});
-          output = (result.output as string[] | undefined)?.[0];
-        } else {
-          throw new Error(`예상치 못한 상태: ${prediction.status}`);
-        }
-      } else {
-        // official model (kontext-pro): model 기반 run
-        output = await replicate!.run(currentModel.id as `${string}/${string}`, {
-          input: {
-            prompt,
-            input_image: photoUrl,
-            aspect_ratio: "3:4",
-            output_format: "png",
-            safety_tolerance: 2,
-          },
-        });
-      }
-
-      const url = String(output);
-
-      if (url.startsWith("http")) {
-        console.log(`${tag} 생성 성공 (${url.slice(0, 80)}...)`);
-        return url;
-      }
-
-      throw new Error(`유효하지 않은 output URL: ${url.slice(0, 200)}`);
+      console.log(`${tag} 완료 (${finalUrl.slice(0, 60)}...)`);
+      return finalUrl;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       const isRateLimit = is429Error(err);
@@ -187,7 +205,9 @@ export async function generatePreviewPages({
 
   for (const page of previewPages) {
     if (DEV_PAGE_LIMIT !== null && generated >= DEV_PAGE_LIMIT) {
-      console.log(`[DEV] DEV_PAGE_LIMIT(${DEV_PAGE_LIMIT}) 도달, p${page.pageNumber} placeholder`);
+      console.log(
+        `[DEV] DEV_PAGE_LIMIT(${DEV_PAGE_LIMIT}) 도달, p${page.pageNumber} placeholder`
+      );
       imageUrls.push(PLACEHOLDER_IMAGE(page.pageNumber));
     } else {
       const url = await generateSinglePage(page, photoUrl, childName, bookId);
@@ -214,7 +234,8 @@ export async function generateRemainingPages({
 
   const remainingPages = scenario.pages.slice(3);
   const imageUrls: string[] = [];
-  const alreadyGenerated = DEV_PAGE_LIMIT !== null ? Math.min(3, DEV_PAGE_LIMIT) : 0;
+  const alreadyGenerated =
+    DEV_PAGE_LIMIT !== null ? Math.min(3, DEV_PAGE_LIMIT) : 0;
   let generated = alreadyGenerated;
 
   for (const page of remainingPages) {
