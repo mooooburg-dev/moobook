@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import ProgressBar from "@/components/ui/ProgressBar";
 
 const PROGRESS_STEPS = [
@@ -15,15 +15,17 @@ const PROGRESS_STEPS = [
   { progress: 90, message: "조금만 더 기다려주세요...", emoji: "⏳", atMs: 57000 },
 ];
 
-const TOTAL_DURATION_MS = 90000; // 90초 동안 90%까지
+const TOTAL_DURATION_MS = 90000;
 
 export default function GenerationProgress() {
-  const startTime = useRef(Date.now());
   const [elapsed, setElapsed] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    const start = Date.now();
     const timer = setInterval(() => {
-      setElapsed(Date.now() - startTime.current);
+      setElapsed(Date.now() - start);
     }, 200);
     return () => clearInterval(timer);
   }, []);
@@ -40,10 +42,10 @@ export default function GenerationProgress() {
   const currentStep = PROGRESS_STEPS[currentStepIndex];
   const nextStep = PROGRESS_STEPS[currentStepIndex + 1];
 
-  // 현재 단계와 다음 단계 사이에서 부드럽게 보간
   let smoothProgress: number;
-  if (!nextStep) {
-    // 마지막 단계: 90%에서 천천히 증가 (최대 95%)
+  if (!mounted) {
+    smoothProgress = 0;
+  } else if (!nextStep) {
     const extra = Math.min(5, ((elapsed - currentStep.atMs) / TOTAL_DURATION_MS) * 5);
     smoothProgress = currentStep.progress + extra;
   } else {
@@ -58,8 +60,8 @@ export default function GenerationProgress() {
     <div className="w-full max-w-md mx-auto text-center page-enter">
       <div className="relative mb-8">
         <div className="w-32 h-32 mx-auto bg-peach rounded-full flex items-center justify-center shadow-inner">
-          <span className="text-6xl animate-gentle-bounce" key={currentStep.emoji}>
-            {currentStep.emoji}
+          <span className="text-6xl animate-gentle-bounce">
+            {mounted ? currentStep.emoji : "📷"}
           </span>
         </div>
         <span className="absolute top-0 right-1/4 text-xl animate-twinkle" style={{ animationDelay: "0s" }}>⭐</span>
@@ -75,7 +77,7 @@ export default function GenerationProgress() {
       </h2>
 
       <p className="text-sm text-text-light mb-6 h-6">
-        {currentStep.message}
+        {mounted ? currentStep.message : "준비 중이에요..."}
       </p>
 
       <ProgressBar
