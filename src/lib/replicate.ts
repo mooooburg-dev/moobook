@@ -15,9 +15,7 @@ const replicate = MOCK_MODE
   ? null
   : new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
 
-const MODEL_ID = "lucataco/ip-adapter-faceid";
-const MODEL_VERSION =
-  "fb81ef963e74776af72e6f380949013533d46dd5c6228a9e586c57db6303d7cd";
+const MODEL_ID = "black-forest-labs/flux-kontext-pro";
 
 const PLACEHOLDER_IMAGE = (pageNumber: number) =>
   `https://placehold.co/768x1024/e8d5f5/7c3aed?text=Page+${pageNumber}`;
@@ -40,10 +38,8 @@ interface GeneratePagesInput {
  */
 function is429Error(err: unknown): boolean {
   if (err && typeof err === "object") {
-    // ApiError.response.status === 429
     const resp = (err as { response?: { status?: number } }).response;
     if (resp?.status === 429) return true;
-    // 메시지 fallback
     if (err instanceof Error && err.message?.includes("429")) return true;
   }
   return false;
@@ -60,13 +56,13 @@ function getRetryAfterMs(err: unknown): number {
       if (val) return (parseInt(val, 10) + 2) * 1000;
     }
   }
-  return 20_000; // 기본 20초 대기
+  return 20_000;
 }
 
 /**
- * 단일 페이지 이미지 생성
- * - predictions.create + wait 방식으로 폴링 최소화
- * - 429 시 retry_after 대기 후 재시도 1회
+ * 단일 페이지 이미지 생성 (flux-kontext-pro)
+ * - input_image + prompt로 얼굴 유지 + 스타일 변환
+ * - 재시도 최대 3회, 429 시 retry_after 대기
  */
 async function generateSinglePage(
   page: ScenarioPage,
@@ -81,48 +77,32 @@ async function generateSinglePage(
     try {
       console.log(`${tag} 생성 시작 (시도 ${attempt + 1}/3)`);
 
-      const prediction = await replicate!.predictions.create({
-        version: MODEL_VERSION,
+      const output = await replicate!.run(MODEL_ID as `${string}/${string}`, {
         input: {
           prompt,
-          face_image: photoUrl,
-          width: 768,
-          height: 1024,
-          num_outputs: 1,
-          num_inference_steps: 30,
-          negative_prompt:
-            "monochrome, lowres, bad anatomy, worst quality, low quality, blurry, multiple people",
-          agree_to_research_only: true,
+          input_image: photoUrl,
+          aspect_ratio: "3:4",
+          output_format: "png",
+          safety_tolerance: 2,
         },
-        wait: true,
       });
 
-      if (prediction.status === "failed") {
-        throw new Error(`Prediction failed: ${prediction.error}`);
+      // flux-kontext-pro는 단일 URL 문자열 또는 FileOutput 반환
+      const url =
+        typeof output === "string"
+          ? output
+          : Array.isArray(output)
+            ? (output as string[])[0]
+            : output && typeof output === "object" && "url" in (output as object)
+              ? String((output as { url: unknown }).url)
+              : null;
+
+      if (url) {
+        console.log(`${tag} 생성 성공`);
+        return url;
       }
 
-      // succeeded인 경우 output에서 URL 추출
-      if (prediction.status === "succeeded" && prediction.output) {
-        const output = prediction.output as string[];
-        if (output[0]) {
-          console.log(`${tag} 생성 성공 ✓`);
-          return output[0];
-        }
-      }
-
-      // 아직 processing 중이면 직접 폴링
-      if (prediction.status === "starting" || prediction.status === "processing") {
-        console.log(`${tag} 아직 처리 중, 폴링...`);
-        const result = await replicate!.wait(prediction, {});
-        const output = result.output as string[] | undefined;
-        if (output?.[0]) {
-          console.log(`${tag} 생성 성공 (폴링) ✓`);
-          return output[0];
-        }
-        throw new Error(`Prediction 완료됐지만 output 없음: ${result.status}`);
-      }
-
-      throw new Error(`예상치 못한 상태: ${prediction.status}`);
+      throw new Error(`예상치 못한 output 형태: ${JSON.stringify(output)}`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       const isRateLimit = is429Error(err);
@@ -158,7 +138,6 @@ export async function generatePreviewPages({
 
   const previewPages = scenario.pages.slice(0, 3);
   const imageUrls: string[] = [];
-  // 지금까지 실제 생성한 누적 수 (preview는 항상 0부터 시작)
   let generated = 0;
 
   for (const page of previewPages) {
@@ -190,7 +169,6 @@ export async function generateRemainingPages({
 
   const remainingPages = scenario.pages.slice(3);
   const imageUrls: string[] = [];
-  // preview에서 최대 3장 생성했으므로 누적은 min(3, limit)부터
   const alreadyGenerated = DEV_PAGE_LIMIT !== null ? Math.min(3, DEV_PAGE_LIMIT) : 0;
   let generated = alreadyGenerated;
 
