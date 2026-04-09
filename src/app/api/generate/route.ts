@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generatePages } from "@/lib/replicate";
+import {
+  generatePreviewPages,
+  generateRemainingPages,
+} from "@/lib/replicate";
 import { getScenario } from "@/lib/scenarios";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ThemeId } from "@/types";
@@ -48,39 +51,65 @@ export async function POST(request: NextRequest) {
       .update({ status: "generating" })
       .eq("id", bookId);
 
-    // 이미지 생성 (동기 방식 - mock이면 즉시, 실제면 순차 호출)
-    const imageUrls = await generatePages({
+    const generateInput = {
       photoUrl,
       scenario,
       childName: book.child_name || "주인공",
       bookId,
-    });
+    };
 
-    // 미리보기용 이미지 (처음 3장)
-    const previewPages = imageUrls.slice(0, 3);
+    // 1단계: preview 3페이지 생성 (동기)
+    const previewUrls = await generatePreviewPages(generateInput);
 
-    // DB 업데이트: all_pages, preview_pages, status
-    const { error: updateError } = await supabase
+    // preview_pages 저장 + status를 preview_ready로 업데이트
+    const { error: previewUpdateError } = await supabase
       .from("moobook_books")
       .update({
-        all_pages: imageUrls,
-        preview_pages: previewPages,
+        preview_pages: previewUrls,
         status: "preview_ready",
       })
       .eq("id", bookId);
 
-    if (updateError) {
-      console.error("Book 업데이트 실패:", updateError);
+    if (previewUpdateError) {
+      console.error("Preview 업데이트 실패:", previewUpdateError);
       return NextResponse.json(
-        { error: "동화책 상태 업데이트에 실패했습니다." },
+        { error: "미리보기 상태 업데이트에 실패했습니다." },
         { status: 500 }
       );
     }
 
+    // 2단계: 나머지 9페이지 백그라운드 생성 (응답은 먼저 반환)
+    generateRemainingPages(generateInput)
+      .then(async (remainingUrls) => {
+        const allPages = [...previewUrls, ...remainingUrls];
+        const { error: updateError } = await supabase
+          .from("moobook_books")
+          .update({ all_pages: allPages })
+          .eq("id", bookId);
+
+        if (updateError) {
+          console.error(
+            `[백그라운드] all_pages 업데이트 실패 (bookId: ${bookId}):`,
+            updateError
+          );
+        } else {
+          console.log(
+            `[백그라운드] 전체 ${allPages.length}페이지 생성 완료 (bookId: ${bookId})`
+          );
+        }
+      })
+      .catch((err) => {
+        console.error(
+          `[백그라운드] 나머지 페이지 생성 실패 (bookId: ${bookId}):`,
+          err
+        );
+      });
+
     return NextResponse.json({
       bookId,
       status: "preview_ready",
-      pageCount: imageUrls.length,
+      previewCount: previewUrls.length,
+      totalPages: scenario.pages.length,
     });
   } catch (error) {
     console.error("이미지 생성 트리거 실패:", error);

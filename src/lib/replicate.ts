@@ -1,11 +1,21 @@
 import Replicate from "replicate";
-import type { Scenario } from "@/types";
+import type { Scenario, ScenarioPage } from "@/types";
 
 const MOCK_MODE = !process.env.REPLICATE_API_TOKEN;
 
 const replicate = MOCK_MODE
   ? null
   : new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
+
+const MODEL_ID = "lucataco/flux-dev-ip-adapter" as `${string}/${string}`;
+
+const PLACEHOLDER_IMAGE = (pageNumber: number) =>
+  `https://placehold.co/768x1024/e8d5f5/7c3aed?text=Page+${pageNumber}`;
+
+// Mock 이미지 URL (Replicate 토큰 없을 때 사용)
+const MOCK_IMAGES = Array.from({ length: 12 }, (_, i) =>
+  PLACEHOLDER_IMAGE(i + 1)
+);
 
 interface GeneratePagesInput {
   photoUrl: string;
@@ -14,42 +24,20 @@ interface GeneratePagesInput {
   bookId: string;
 }
 
-// Mock 이미지 URL (Replicate 토큰 없을 때 사용)
-const MOCK_IMAGES = [
-  "https://placehold.co/768x1024/e8d5f5/7c3aed?text=Page+1",
-  "https://placehold.co/768x1024/d5e8f5/3a7ced?text=Page+2",
-  "https://placehold.co/768x1024/d5f5e8/3aed7c?text=Page+3",
-  "https://placehold.co/768x1024/f5e8d5/ed7c3a?text=Page+4",
-  "https://placehold.co/768x1024/f5d5e8/ed3a7c?text=Page+5",
-  "https://placehold.co/768x1024/e8f5d5/7ced3a?text=Page+6",
-  "https://placehold.co/768x1024/d5f5f5/3aeded?text=Page+7",
-  "https://placehold.co/768x1024/f5f5d5/eded3a?text=Page+8",
-  "https://placehold.co/768x1024/f5d5d5/ed3a3a?text=Page+9",
-  "https://placehold.co/768x1024/d5d5f5/3a3aed?text=Page+10",
-  "https://placehold.co/768x1024/e8e8d5/7c7c3a?text=Page+11",
-  "https://placehold.co/768x1024/d5e8e8/3a7c7c?text=Page+12",
-];
+/**
+ * 단일 페이지 이미지 생성 (재시도 1회 포함)
+ */
+async function generateSinglePage(
+  page: ScenarioPage,
+  photoUrl: string,
+  childName: string,
+  bookId: string
+): Promise<string> {
+  const prompt = page.prompt.replace("{name}", childName);
 
-export async function generatePages({
-  photoUrl,
-  scenario,
-  childName,
-  bookId,
-}: GeneratePagesInput): Promise<string[]> {
-  if (MOCK_MODE) {
-    console.log(`[MOCK] Replicate 토큰 없음 - mock 이미지로 대체 (bookId: ${bookId})`);
-    // 실제 API 호출 대신 mock 이미지 반환
-    return MOCK_IMAGES.slice(0, scenario.pages.length);
-  }
-
-  // Replicate API로 실제 이미지 생성
-  const imageUrls: string[] = [];
-
-  for (const page of scenario.pages) {
-    const prompt = page.prompt.replace("{name}", childName);
-
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const output = await replicate!.run("lucataco/flux-dev-ip-adapter" as `${string}/${string}`, {
+      const output = await replicate!.run(MODEL_ID, {
         input: {
           prompt,
           main_face_image: photoUrl,
@@ -60,14 +48,73 @@ export async function generatePages({
         },
       });
 
-      // output은 URL 배열
       const urls = output as string[];
-      imageUrls.push(urls[0] || MOCK_IMAGES[page.pageNumber - 1]);
+      if (urls[0]) return urls[0];
+      throw new Error("빈 응답");
     } catch (err) {
-      console.error(`페이지 ${page.pageNumber} 생성 실패:`, err);
-      // 실패 시 mock 이미지로 대체
-      imageUrls.push(MOCK_IMAGES[page.pageNumber - 1]);
+      if (attempt === 0) {
+        console.warn(
+          `[Replicate] 페이지 ${page.pageNumber} 생성 실패, 재시도... (bookId: ${bookId})`,
+          err
+        );
+      } else {
+        console.error(
+          `[Replicate] 페이지 ${page.pageNumber} 재시도도 실패, placeholder 대체 (bookId: ${bookId})`,
+          err
+        );
+      }
     }
+  }
+
+  return PLACEHOLDER_IMAGE(page.pageNumber);
+}
+
+/**
+ * preview용 3페이지만 생성하여 반환
+ */
+export async function generatePreviewPages({
+  photoUrl,
+  scenario,
+  childName,
+  bookId,
+}: GeneratePagesInput): Promise<string[]> {
+  if (MOCK_MODE) {
+    console.log(
+      `[MOCK] Replicate 토큰 없음 - mock 이미지로 대체 (bookId: ${bookId})`
+    );
+    return MOCK_IMAGES.slice(0, 3);
+  }
+
+  const previewPages = scenario.pages.slice(0, 3);
+  const imageUrls: string[] = [];
+
+  for (const page of previewPages) {
+    const url = await generateSinglePage(page, photoUrl, childName, bookId);
+    imageUrls.push(url);
+  }
+
+  return imageUrls;
+}
+
+/**
+ * 나머지 페이지(4~12) 생성하여 반환
+ */
+export async function generateRemainingPages({
+  photoUrl,
+  scenario,
+  childName,
+  bookId,
+}: GeneratePagesInput): Promise<string[]> {
+  if (MOCK_MODE) {
+    return MOCK_IMAGES.slice(3, scenario.pages.length);
+  }
+
+  const remainingPages = scenario.pages.slice(3);
+  const imageUrls: string[] = [];
+
+  for (const page of remainingPages) {
+    const url = await generateSinglePage(page, photoUrl, childName, bookId);
+    imageUrls.push(url);
   }
 
   return imageUrls;
