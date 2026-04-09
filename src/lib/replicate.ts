@@ -87,22 +87,49 @@ async function generateSinglePage(
         },
       });
 
-      // flux-kontext-pro는 단일 URL 문자열 또는 FileOutput 반환
-      const url =
-        typeof output === "string"
-          ? output
-          : Array.isArray(output)
-            ? (output as string[])[0]
-            : output && typeof output === "object" && "url" in (output as object)
-              ? String((output as { url: unknown }).url)
-              : null;
+      // Replicate SDK의 FileOutput은 ReadableStream을 상속하며
+      // .url() 메서드 또는 toString()으로 URL을 반환
+      console.log(`${tag} output type: ${typeof output}, constructor: ${output?.constructor?.name}`);
 
-      if (url) {
-        console.log(`${tag} 생성 성공`);
+      let url: string | null = null;
+
+      if (typeof output === "string") {
+        url = output;
+      } else if (output && typeof output === "object") {
+        // FileOutput 객체: .url() 메서드로 URL 추출
+        const obj = output as Record<string, unknown>;
+        if (typeof obj.url === "function") {
+          url = (obj.url as () => string)();
+        } else if (typeof obj.url === "string") {
+          url = obj.url;
+        } else if (typeof obj.href === "string") {
+          url = obj.href;
+        }
+
+        // 배열인 경우 첫 번째 요소에서 재귀적 추출
+        if (!url && Array.isArray(output)) {
+          const first = output[0];
+          if (typeof first === "string") {
+            url = first;
+          } else if (first && typeof first === "object") {
+            const f = first as Record<string, unknown>;
+            if (typeof f.url === "function") {
+              url = (f.url as () => string)();
+            } else if (typeof f.url === "string") {
+              url = f.url;
+            } else if (typeof f.href === "string") {
+              url = f.href;
+            }
+          }
+        }
+      }
+
+      if (url && url.startsWith("http")) {
+        console.log(`${tag} 생성 성공 (${url.slice(0, 60)}...)`);
         return url;
       }
 
-      throw new Error(`예상치 못한 output 형태: ${JSON.stringify(output)}`);
+      throw new Error(`예상치 못한 output: type=${typeof output}, value=${JSON.stringify(output)?.slice(0, 200)}`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       const isRateLimit = is429Error(err);
