@@ -67,8 +67,10 @@ async function generateSinglePage(
   const prompt = page.prompt.replace("{name}", childName);
   const tag = `[Replicate] p${page.pageNumber} (${bookId.slice(0, 8)})`;
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      console.log(`${tag} 생성 시작 (시도 ${attempt + 1}/3)`);
+
       const prediction = await replicate!.predictions.create({
         model: MODEL_ID,
         input: {
@@ -90,18 +92,18 @@ async function generateSinglePage(
       if (prediction.status === "succeeded" && prediction.output) {
         const output = prediction.output as string[];
         if (output[0]) {
-          console.log(`${tag} 생성 성공`);
+          console.log(`${tag} 생성 성공 ✓`);
           return output[0];
         }
       }
 
       // 아직 processing 중이면 직접 폴링
       if (prediction.status === "starting" || prediction.status === "processing") {
-        console.log(`${tag} 아직 처리 중, 폴링 시작...`);
+        console.log(`${tag} 아직 처리 중, 폴링...`);
         const result = await replicate!.wait(prediction, {});
         const output = result.output as string[] | undefined;
         if (output?.[0]) {
-          console.log(`${tag} 생성 성공 (폴링)`);
+          console.log(`${tag} 생성 성공 (폴링) ✓`);
           return output[0];
         }
         throw new Error(`Prediction 완료됐지만 output 없음: ${result.status}`);
@@ -109,17 +111,17 @@ async function generateSinglePage(
 
       throw new Error(`예상치 못한 상태: ${prediction.status}`);
     } catch (err) {
-      if (attempt === 0) {
-        if (is429Error(err)) {
-          const waitMs = getRetryAfterMs(err);
-          console.warn(`${tag} rate limited, ${waitMs / 1000}s 대기 후 재시도`);
-          await sleep(waitMs);
-        } else {
-          console.warn(`${tag} 실패, 10s 후 재시도`);
-          await sleep(10_000);
-        }
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const isRateLimit = is429Error(err);
+      const waitMs = isRateLimit ? getRetryAfterMs(err) : 15_000;
+
+      if (attempt < 2) {
+        console.warn(
+          `${tag} ${isRateLimit ? "rate limited" : "실패"}, ${Math.round(waitMs / 1000)}s 대기 후 재시도 (${errMsg})`
+        );
+        await sleep(waitMs);
       } else {
-        console.error(`${tag} 재시도 실패 → placeholder 대체`);
+        console.error(`${tag} 최종 실패 → placeholder 대체 (${errMsg})`);
       }
     }
   }
