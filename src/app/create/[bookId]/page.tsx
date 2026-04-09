@@ -18,7 +18,7 @@ export default function BookDetailPage() {
   const fetchBook = useCallback(async () => {
     const supabase = createClient();
     const { data, error: fetchError } = await supabase
-      .from("books")
+      .from("moobook_books")
       .select("*")
       .eq("id", params.bookId)
       .single();

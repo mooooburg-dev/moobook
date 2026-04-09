@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // book 조회
     const { data: book, error: fetchError } = await supabase
-      .from("books")
+      .from("moobook_books")
       .select("*")
       .eq("id", bookId)
       .single();
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     // status를 generating으로 업데이트
     await supabase
-      .from("books")
+      .from("moobook_books")
       .update({ status: "generating" })
       .eq("id", bookId);
 
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     // DB 업데이트: all_pages, preview_pages, status
     const { error: updateError } = await supabase
-      .from("books")
+      .from("moobook_books")
       .update({
         all_pages: imageUrls,
         preview_pages: previewPages,

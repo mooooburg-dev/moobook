@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
       // 현재 book 데이터 조회
       const { data: book } = await supabase
-        .from("books")
+        .from("moobook_books")
         .select("all_pages, preview_pages")
         .eq("id", bookId)
         .single();
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       const isComplete = completedCount === allPages.length;
 
       await supabase
-        .from("books")
+        .from("moobook_books")
         .update({
           all_pages: allPages,
           preview_pages: previewPages,

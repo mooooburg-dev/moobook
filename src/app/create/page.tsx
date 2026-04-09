@@ -43,7 +43,7 @@ export default function CreatePage() {
       // 2. books 테이블에 레코드 생성
       const supabase = createClient();
       const { data: book, error: insertError } = await supabase
-        .from("books")
+        .from("moobook_books")
         .insert({
           status: "pending",
           theme,
