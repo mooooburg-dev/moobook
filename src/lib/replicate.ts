@@ -16,6 +16,8 @@ const replicate = MOCK_MODE
   : new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
 
 const MODEL_ID = "lucataco/ip-adapter-faceid";
+const MODEL_VERSION =
+  "fb81ef963e74776af72e6f380949013533d46dd5c6228a9e586c57db6303d7cd";
 
 const PLACEHOLDER_IMAGE = (pageNumber: number) =>
   `https://placehold.co/768x1024/e8d5f5/7c3aed?text=Page+${pageNumber}`;
@@ -80,7 +82,7 @@ async function generateSinglePage(
       console.log(`${tag} 생성 시작 (시도 ${attempt + 1}/3)`);
 
       const prediction = await replicate!.predictions.create({
-        model: MODEL_ID,
+        version: MODEL_VERSION,
         input: {
           prompt,
           face_image: photoUrl,
