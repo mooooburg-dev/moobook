@@ -28,8 +28,12 @@ export default function BookDetailPage() {
       return null;
     }
 
-    setBook(data as Book);
-    return data as Book;
+    const newBook = data as Book;
+    // status가 바뀔 때만 업데이트 (불필요한 리렌더링 방지)
+    setBook((prev) =>
+      prev?.status !== newBook.status ? newBook : prev
+    );
+    return newBook;
   }, [params.bookId]);
 
   // 최초 로드 + AI 생성 트리거
@@ -87,7 +91,7 @@ export default function BookDetailPage() {
   if (!book || book.status === "pending" || book.status === "generating") {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20">
-        <GenerationProgress status={book?.status || "pending"} />
+        <GenerationProgress />
       </div>
     );
   }
