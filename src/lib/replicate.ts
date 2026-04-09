@@ -17,6 +17,11 @@ const MOCK_IMAGES = Array.from({ length: 12 }, (_, i) =>
   PLACEHOLDER_IMAGE(i + 1)
 );
 
+// Rate limit 대응: 페이지 간 호출 간격 (ms)
+const REQUEST_INTERVAL_MS = 12_000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 interface GeneratePagesInput {
   photoUrl: string;
   scenario: Scenario;
@@ -25,7 +30,31 @@ interface GeneratePagesInput {
 }
 
 /**
- * 단일 페이지 이미지 생성 (재시도 1회 포함)
+ * 429 에러에서 retry_after 값 추출
+ */
+function getRetryAfter(err: unknown): number | null {
+  if (
+    err &&
+    typeof err === "object" &&
+    "response" in err &&
+    (err as { response: Response }).response
+  ) {
+    const res = (err as { response: Response }).response;
+    const retryHeader = res.headers?.get?.("retry-after");
+    if (retryHeader) return (parseInt(retryHeader, 10) + 1) * 1000;
+  }
+  return null;
+}
+
+function is429Error(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    err.message?.includes("429")
+  );
+}
+
+/**
+ * 단일 페이지 이미지 생성 (재시도 1회 + rate limit 대기 포함)
  */
 async function generateSinglePage(
   page: ScenarioPage,
@@ -52,16 +81,19 @@ async function generateSinglePage(
       if (urls[0]) return urls[0];
       throw new Error("빈 응답");
     } catch (err) {
+      const tag = `[Replicate] 페이지 ${page.pageNumber} (bookId: ${bookId})`;
+
       if (attempt === 0) {
-        console.warn(
-          `[Replicate] 페이지 ${page.pageNumber} 생성 실패, 재시도... (bookId: ${bookId})`,
-          err
-        );
+        // 429면 retry_after만큼 대기 후 재시도
+        if (is429Error(err)) {
+          const waitMs = getRetryAfter(err) ?? 15_000;
+          console.warn(`${tag} rate limited, ${waitMs}ms 대기 후 재시도...`);
+          await sleep(waitMs);
+        } else {
+          console.warn(`${tag} 생성 실패, 재시도...`, err);
+        }
       } else {
-        console.error(
-          `[Replicate] 페이지 ${page.pageNumber} 재시도도 실패, placeholder 대체 (bookId: ${bookId})`,
-          err
-        );
+        console.error(`${tag} 재시도도 실패, placeholder 대체`, err);
       }
     }
   }
@@ -88,8 +120,9 @@ export async function generatePreviewPages({
   const previewPages = scenario.pages.slice(0, 3);
   const imageUrls: string[] = [];
 
-  for (const page of previewPages) {
-    const url = await generateSinglePage(page, photoUrl, childName, bookId);
+  for (let i = 0; i < previewPages.length; i++) {
+    if (i > 0) await sleep(REQUEST_INTERVAL_MS);
+    const url = await generateSinglePage(previewPages[i], photoUrl, childName, bookId);
     imageUrls.push(url);
   }
 
@@ -112,8 +145,9 @@ export async function generateRemainingPages({
   const remainingPages = scenario.pages.slice(3);
   const imageUrls: string[] = [];
 
-  for (const page of remainingPages) {
-    const url = await generateSinglePage(page, photoUrl, childName, bookId);
+  for (let i = 0; i < remainingPages.length; i++) {
+    if (i > 0) await sleep(REQUEST_INTERVAL_MS);
+    const url = await generateSinglePage(remainingPages[i], photoUrl, childName, bookId);
     imageUrls.push(url);
   }
 
