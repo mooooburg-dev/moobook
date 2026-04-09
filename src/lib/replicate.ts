@@ -15,7 +15,7 @@ const replicate = MOCK_MODE
   ? null
   : new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
 
-const MODEL_ID = "lucataco/flux-dev-ip-adapter";
+const MODEL_ID = "lucataco/ip-adapter-faceid";
 
 const PLACEHOLDER_IMAGE = (pageNumber: number) =>
   `https://placehold.co/768x1024/e8d5f5/7c3aed?text=Page+${pageNumber}`;
@@ -83,11 +83,14 @@ async function generateSinglePage(
         model: MODEL_ID,
         input: {
           prompt,
-          main_face_image: photoUrl,
+          face_image: photoUrl,
           width: 768,
           height: 1024,
           num_outputs: 1,
-          guidance_scale: 7.5,
+          num_inference_steps: 30,
+          negative_prompt:
+            "monochrome, lowres, bad anatomy, worst quality, low quality, blurry, multiple people",
+          agree_to_research_only: true,
         },
         wait: true,
       });
