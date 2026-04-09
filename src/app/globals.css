@@ -1,19 +1,165 @@
+@import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FFF8F0;
+  --foreground: #3D3D3D;
+  --color-cream: #FFF8F0;
+  --color-peach: #FEF3E2;
+  --color-primary: #FF8C42;
+  --color-primary-dark: #E07830;
+  --color-secondary: #6BCB77;
+  --color-secondary-dark: #55B562;
+  --color-accent-blue: #4D96FF;
+  --color-accent-pink: #FF6B8A;
+  --color-text: #3D3D3D;
+  --color-text-light: #7A7A7A;
+  --color-text-lighter: #A8A8A8;
+  --font-heading: 'Jua', sans-serif;
+  --font-body: 'Noto Sans KR', sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-cream: #FFF8F0;
+  --color-peach: #FEF3E2;
+  --color-primary: #FF8C42;
+  --color-primary-dark: #E07830;
+  --color-secondary: #6BCB77;
+  --color-secondary-dark: #55B562;
+  --color-accent-blue: #4D96FF;
+  --color-accent-pink: #FF6B8A;
+  --color-text: #3D3D3D;
+  --color-text-light: #7A7A7A;
+  --color-text-lighter: #A8A8A8;
+  --font-heading: 'Jua', sans-serif;
+  --font-body: 'Noto Sans KR', sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
+}
+
+/* 물결선 디바이더 */
+.wave-divider {
+  width: 100%;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.wave-divider svg {
+  display: block;
+  width: 100%;
+  height: 48px;
+}
+
+/* 구름 배경 패턴 */
+.cloud-pattern {
+  background-image:
+    radial-gradient(ellipse 80px 50px at 15% 20%, rgba(255,255,255,0.6) 0%, transparent 70%),
+    radial-gradient(ellipse 100px 60px at 75% 30%, rgba(255,255,255,0.5) 0%, transparent 70%),
+    radial-gradient(ellipse 70px 45px at 45% 70%, rgba(255,255,255,0.4) 0%, transparent 70%),
+    radial-gradient(ellipse 90px 55px at 85% 80%, rgba(255,255,255,0.5) 0%, transparent 70%);
+}
+
+/* 별 반짝임 애니메이션 */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.animate-twinkle {
+  animation: twinkle 2s ease-in-out infinite;
+}
+
+/* 점선 화살표 */
+.dashed-arrow {
+  border-top: 3px dashed var(--color-primary);
+  position: relative;
+}
+
+.dashed-arrow::after {
+  content: '▶';
+  position: absolute;
+  right: -8px;
+  top: -12px;
+  color: var(--color-primary);
+  font-size: 14px;
+}
+
+/* 부드러운 바운스 */
+@keyframes gentle-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.animate-gentle-bounce {
+  animation: gentle-bounce 2s ease-in-out infinite;
+}
+
+/* 플로팅 애니메이션 */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-6px) rotate(2deg); }
+  66% { transform: translateY(3px) rotate(-1deg); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* 리본 뱃지 */
+.ribbon-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 80px;
+  height: 80px;
+  overflow: hidden;
+}
+
+.ribbon-badge span {
+  position: absolute;
+  display: block;
+  width: 120px;
+  padding: 6px 0;
+  background: var(--color-primary);
+  color: white;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  text-align: center;
+  transform: rotate(45deg);
+  top: 18px;
+  right: -30px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* 액자 프레임 */
+.frame-border {
+  border: 4px solid var(--color-primary);
+  border-radius: 24px;
+  padding: 6px;
+  background: linear-gradient(135deg, #FEF3E2, #FFF8F0);
+  box-shadow:
+    inset 0 0 0 2px rgba(255,140,66,0.2),
+    0 4px 16px rgba(255,140,66,0.15);
+}
+
+/* 페이지 전환 애니메이션 */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: fadeSlideIn 0.5s ease-out;
 }

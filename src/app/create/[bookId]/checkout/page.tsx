@@ -32,13 +32,19 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-12">
-      <h1 className="text-2xl font-extrabold text-center text-gray-900 mb-2">
-        결제하기
-      </h1>
-      <p className="text-center text-gray-500 mb-10">
-        동화책 옵션을 선택해주세요
-      </p>
+    <div className="max-w-2xl mx-auto px-4 py-12 page-enter">
+      <div className="text-center mb-10">
+        <div className="text-4xl mb-3">💳</div>
+        <h1
+          className="text-2xl text-text"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          결제하기
+        </h1>
+        <p className="text-text-light mt-2">
+          동화책 옵션을 선택해주세요
+        </p>
+      </div>
 
       <PricingTable onSelect={setSelectedTier} />
 
@@ -49,7 +55,7 @@ export default function CheckoutPage() {
             disabled={isProcessing}
             onClick={handlePayment}
           >
-            {isProcessing ? "결제 처리 중..." : "결제하기"}
+            {isProcessing ? "✨ 결제 처리 중..." : "💳 결제하기"}
           </Button>
         </div>
       )}

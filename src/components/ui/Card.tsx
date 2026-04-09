@@ -12,8 +12,10 @@ export default function Card({
 }: CardProps) {
   return (
     <div
-      className={`bg-white rounded-3xl shadow-md p-6 ${
-        hover ? "hover:shadow-lg transition-shadow cursor-pointer" : ""
+      className={`bg-white rounded-3xl shadow-md p-6 border border-primary/10 ${
+        hover
+          ? "hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+          : ""
       } ${className}`}
       {...props}
     >

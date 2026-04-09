@@ -67,48 +67,73 @@ export default function CreatePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-12">
-      <h1 className="text-3xl font-extrabold text-center text-gray-900 mb-2">
-        동화책 만들기
-      </h1>
-      <p className="text-center text-gray-500 mb-10">
-        아이의 사진과 테마를 선택해주세요
-      </p>
+    <div className="max-w-2xl mx-auto px-4 py-12 page-enter">
+      <div className="text-center mb-10">
+        <div className="text-4xl mb-3">🎨</div>
+        <h1
+          className="text-3xl text-text"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          동화책 만들기
+        </h1>
+        <p className="text-text-light mt-2">
+          아이의 사진과 테마를 선택해주세요
+        </p>
+      </div>
 
       {/* Step 1: 사진 업로드 */}
       <section className="mb-10">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">
-          1. 아이 사진 업로드
-        </h2>
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>1</span>
+          <h2
+            className="text-lg text-text"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            아이 사진 업로드
+          </h2>
+        </div>
         <PhotoUploader onPhotoSelected={setPhoto} />
       </section>
 
       {/* Step 2: 아이 이름 입력 */}
       <section className="mb-10">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">
-          2. 아이 이름
-        </h2>
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-8 h-8 rounded-full bg-secondary text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>2</span>
+          <h2
+            className="text-lg text-text"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            아이 이름
+          </h2>
+        </div>
         <input
           type="text"
           value={childName}
           onChange={(e) => setChildName(e.target.value)}
           placeholder="동화 속 주인공 이름을 입력하세요"
-          className="w-full max-w-md mx-auto block px-4 py-3 border border-gray-300 rounded-2xl text-center focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+          className="w-full max-w-md mx-auto block px-5 py-3 border-2 border-primary/20 rounded-full text-center text-text bg-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+          style={{ fontFamily: "var(--font-body)" }}
           maxLength={20}
         />
       </section>
 
       {/* Step 3: 테마 선택 */}
       <section className="mb-10">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">
-          3. 테마 선택
-        </h2>
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-8 h-8 rounded-full bg-accent-blue text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>3</span>
+          <h2
+            className="text-lg text-text"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            테마 선택
+          </h2>
+        </div>
         <ThemeSelector selectedTheme={theme} onSelect={setTheme} />
       </section>
 
       {/* 에러 메시지 */}
       {error && (
-        <p className="text-center text-red-500 text-sm mb-4">{error}</p>
+        <p className="text-center text-accent-pink text-sm mb-4">{error}</p>
       )}
 
       {/* 제출 */}
@@ -118,7 +143,7 @@ export default function CreatePage() {
           disabled={!canSubmit || isSubmitting}
           onClick={handleSubmit}
         >
-          {isSubmitting ? "동화책 만드는 중..." : "동화책 만들기 시작!"}
+          {isSubmitting ? "✨ 동화책 만드는 중..." : "📖 동화책 만들기 시작!"}
         </Button>
       </div>
     </div>

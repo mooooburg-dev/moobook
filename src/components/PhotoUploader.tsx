@@ -39,37 +39,34 @@ export default function PhotoUploader({ onPhotoSelected }: PhotoUploaderProps) {
   return (
     <div className="w-full max-w-md mx-auto">
       <label
-        className={`flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-3xl cursor-pointer transition-colors ${
+        className={`frame-border flex flex-col items-center justify-center w-full h-64 cursor-pointer transition-all duration-300 ${
           preview
-            ? "border-violet-400 bg-violet-50"
-            : "border-gray-300 bg-gray-50 hover:border-violet-400 hover:bg-violet-50"
+            ? ""
+            : "hover:shadow-lg"
         }`}
       >
         {preview ? (
           <img
             src={preview}
             alt="업로드된 사진"
-            className="w-full h-full object-cover rounded-3xl"
+            className="w-full h-full object-cover rounded-2xl"
           />
         ) : (
-          <div className="flex flex-col items-center gap-3 text-gray-500">
-            <svg
-              className="w-12 h-12"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex flex-col items-center gap-3 text-text-light">
+            {/* 카메라 + 액자 아이콘 */}
+            <div className="relative">
+              <div className="w-20 h-20 rounded-2xl border-3 border-dashed border-primary/40 flex items-center justify-center bg-peach/50">
+                <span className="text-4xl">📷</span>
+              </div>
+              <span className="absolute -bottom-1 -right-1 text-lg">✨</span>
+            </div>
+            <span
+              className="text-sm text-text"
+              style={{ fontFamily: "var(--font-heading)" }}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M12 16v-8m0 0l-3 3m3-3l3 3M6.75 19.25h10.5A2.25 2.25 0 0019.5 17V7A2.25 2.25 0 0017.25 4.75H6.75A2.25 2.25 0 004.5 7v10a2.25 2.25 0 002.25 2.25z"
-              />
-            </svg>
-            <span className="text-sm font-medium">
               아이의 정면 사진을 올려주세요
             </span>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-text-lighter">
               JPG, PNG, WEBP / 최대 10MB
             </span>
           </div>
@@ -83,13 +80,13 @@ export default function PhotoUploader({ onPhotoSelected }: PhotoUploaderProps) {
       </label>
 
       {isValidating && (
-        <p className="mt-3 text-sm text-violet-600 text-center">
-          사진을 확인하고 있어요...
+        <p className="mt-3 text-sm text-primary text-center animate-pulse">
+          ✨ 사진을 확인하고 있어요...
         </p>
       )}
 
       {error && (
-        <p className="mt-3 text-sm text-red-500 text-center">{error}</p>
+        <p className="mt-3 text-sm text-accent-pink text-center">{error}</p>
       )}
 
       {preview && (

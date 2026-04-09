@@ -76,8 +76,9 @@ export default function BookDetailPage() {
 
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <p className="text-red-500 mb-4">{error}</p>
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center page-enter">
+        <div className="text-4xl mb-4">😢</div>
+        <p className="text-accent-pink mb-4">{error}</p>
         <Button onClick={() => router.push("/create")}>다시 시작하기</Button>
       </div>
     );
@@ -112,13 +113,19 @@ export default function BookDetailPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-12">
-      <h1 className="text-2xl font-extrabold text-center text-gray-900 mb-2">
-        미리보기
-      </h1>
-      <p className="text-center text-gray-500 mb-8">
-        {book.child_name}의 동화책이 준비되었어요!
-      </p>
+    <div className="max-w-2xl mx-auto px-4 py-12 page-enter">
+      <div className="text-center mb-8">
+        <div className="text-3xl mb-2">✨</div>
+        <h1
+          className="text-2xl text-text"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          미리보기
+        </h1>
+        <p className="text-text-light mt-1">
+          {book.child_name}의 동화책이 준비되었어요! 📖
+        </p>
+      </div>
 
       {book.preview_pages && (
         <BookPreview pages={book.preview_pages} locked />
@@ -129,7 +136,7 @@ export default function BookDetailPage() {
           size="lg"
           onClick={() => router.push(`/create/${params.bookId}/checkout`)}
         >
-          전체 동화책 구매하기
+          📚 전체 동화책 구매하기
         </Button>
       </div>
     </div>

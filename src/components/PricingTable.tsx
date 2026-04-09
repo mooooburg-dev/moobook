@@ -1,5 +1,4 @@
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import type { OrderTier } from "@/types";
 
 interface PricingTableProps {
@@ -10,13 +9,17 @@ const tiers = [
   {
     id: "digital" as OrderTier,
     name: "디지털 PDF",
+    emoji: "💾",
     price: 9900,
     description: "고해상도 PDF 다운로드",
     features: ["12페이지 풀 컬러", "고해상도 PDF", "즉시 다운로드", "무제한 출력 가능"],
+    borderColor: "border-accent-blue/30",
+    checkColor: "text-accent-blue",
   },
   {
     id: "softcover" as OrderTier,
     name: "소프트커버 책",
+    emoji: "📚",
     price: 29900,
     description: "실물 동화책 배송",
     features: [
@@ -26,6 +29,8 @@ const tiers = [
       "무료 배송 (3~5일)",
     ],
     popular: true,
+    borderColor: "border-primary",
+    checkColor: "text-primary",
   },
 ];
 
@@ -33,32 +38,39 @@ export default function PricingTable({ onSelect }: PricingTableProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
       {tiers.map((tier) => (
-        <Card
+        <div
           key={tier.id}
-          className={`relative text-center ${
-            tier.popular ? "ring-2 ring-violet-500" : ""
-          }`}
+          className={`relative bg-white rounded-3xl shadow-md p-6 border-2 ${tier.borderColor} text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden`}
         >
           {tier.popular && (
-            <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-violet-600 text-white text-xs font-bold px-3 py-1 rounded-full">
-              인기
-            </span>
+            <div className="ribbon-badge">
+              <span>인기</span>
+            </div>
           )}
 
-          <h3 className="text-lg font-bold text-gray-900 mt-2">{tier.name}</h3>
-          <p className="text-sm text-gray-500 mt-1">{tier.description}</p>
+          <div className="text-4xl mb-2">{tier.emoji}</div>
+          <h3
+            className="text-lg text-text mt-2"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            {tier.name}
+          </h3>
+          <p className="text-sm text-text-light mt-1">{tier.description}</p>
 
           <div className="my-4">
-            <span className="text-3xl font-extrabold text-gray-900">
+            <span
+              className={`text-3xl ${tier.popular ? "text-primary" : "text-text"}`}
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
               {tier.price.toLocaleString()}
             </span>
-            <span className="text-gray-500 text-sm">원</span>
+            <span className="text-text-light text-sm">원</span>
           </div>
 
-          <ul className="text-sm text-gray-600 space-y-2 mb-6">
+          <ul className="text-sm text-text-light space-y-2 mb-6 text-left">
             {tier.features.map((feature) => (
               <li key={feature} className="flex items-center gap-2">
-                <span className="text-violet-500">&#10003;</span>
+                <span className={tier.checkColor}>✓</span>
                 {feature}
               </li>
             ))}
@@ -71,7 +83,7 @@ export default function PricingTable({ onSelect }: PricingTableProps) {
           >
             선택하기
           </Button>
-        </Card>
+        </div>
       ))}
     </div>
   );
