@@ -1,7 +1,15 @@
 import Replicate from "replicate";
 import type { Scenario, ScenarioPage } from "@/types";
 
-const MOCK_MODE = !process.env.REPLICATE_API_TOKEN;
+// USE_MOCK_AI=true → Replicate 호출 없이 placeholder 반환
+// REPLICATE_API_TOKEN 없어도 자동 mock
+const MOCK_MODE =
+  process.env.USE_MOCK_AI === "true" || !process.env.REPLICATE_API_TOKEN;
+
+// DEV_PAGE_LIMIT=3 → 처음 3장만 실제 생성, 나머지 placeholder
+const DEV_PAGE_LIMIT = process.env.DEV_PAGE_LIMIT
+  ? parseInt(process.env.DEV_PAGE_LIMIT, 10)
+  : null;
 
 const replicate = MOCK_MODE
   ? null
@@ -145,10 +153,18 @@ export async function generatePreviewPages({
 
   const previewPages = scenario.pages.slice(0, 3);
   const imageUrls: string[] = [];
+  // 지금까지 실제 생성한 누적 수 (preview는 항상 0부터 시작)
+  let generated = 0;
 
   for (const page of previewPages) {
-    const url = await generateSinglePage(page, photoUrl, childName, bookId);
-    imageUrls.push(url);
+    if (DEV_PAGE_LIMIT !== null && generated >= DEV_PAGE_LIMIT) {
+      console.log(`[DEV] DEV_PAGE_LIMIT(${DEV_PAGE_LIMIT}) 도달, p${page.pageNumber} placeholder`);
+      imageUrls.push(PLACEHOLDER_IMAGE(page.pageNumber));
+    } else {
+      const url = await generateSinglePage(page, photoUrl, childName, bookId);
+      imageUrls.push(url);
+      generated++;
+    }
   }
 
   return imageUrls;
@@ -169,10 +185,18 @@ export async function generateRemainingPages({
 
   const remainingPages = scenario.pages.slice(3);
   const imageUrls: string[] = [];
+  // preview에서 최대 3장 생성했으므로 누적은 min(3, limit)부터
+  const alreadyGenerated = DEV_PAGE_LIMIT !== null ? Math.min(3, DEV_PAGE_LIMIT) : 0;
+  let generated = alreadyGenerated;
 
   for (const page of remainingPages) {
-    const url = await generateSinglePage(page, photoUrl, childName, bookId);
-    imageUrls.push(url);
+    if (DEV_PAGE_LIMIT !== null && generated >= DEV_PAGE_LIMIT) {
+      imageUrls.push(PLACEHOLDER_IMAGE(page.pageNumber));
+    } else {
+      const url = await generateSinglePage(page, photoUrl, childName, bookId);
+      imageUrls.push(url);
+      generated++;
+    }
   }
 
   return imageUrls;
