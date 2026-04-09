@@ -29,10 +29,13 @@ export default function BookDetailPage() {
     }
 
     const newBook = data as Book;
-    // status가 바뀔 때만 업데이트 (불필요한 리렌더링 방지)
-    setBook((prev) =>
-      prev?.status !== newBook.status ? newBook : prev
-    );
+    // status 또는 preview_pages가 바뀔 때만 업데이트
+    setBook((prev) => {
+      if (!prev) return newBook;
+      if (prev.status !== newBook.status) return newBook;
+      if (prev.preview_pages?.length !== newBook.preview_pages?.length) return newBook;
+      return prev;
+    });
     return newBook;
   }, [params.bookId]);
 
