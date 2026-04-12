@@ -96,8 +96,7 @@ export default function Home() {
               sizes="(max-width: 1100px) 100vw, 1300px"
               className="object-cover object-[center_40%]"
               style={{
-                filter:
-                  'saturate(0.75) brightness(1.2) contrast(0.8) sepia(0.08)',
+                filter: 'brightness(1.12) contrast(0.93) saturate(1.05)',
               }}
               priority
             />

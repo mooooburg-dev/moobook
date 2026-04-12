@@ -67,12 +67,40 @@ export default function RootLayout({
 
         <footer className="bg-peach py-10 mt-auto">
           <div className="max-w-5xl mx-auto px-4 text-center">
-            <p
-              className="text-primary text-lg mb-2"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              📖 무북
-            </p>
+            <div className="flex justify-center mb-3">
+              <Link
+                href="/"
+                className="group flex items-center gap-2 text-xl text-primary hover:opacity-90 transition-opacity"
+                style={{ fontFamily: 'var(--font-heading)' }}
+              >
+                <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-full bg-linear-to-br from-primary to-accent-pink shadow-[0_2px_8px_rgba(255,140,66,0.35)] group-hover:-rotate-6 transition-transform duration-300">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="w-5 h-5 text-white"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M3 5.5C3 4.67 3.67 4 4.5 4H10a2 2 0 0 1 2 2v13a1.5 1.5 0 0 0-1.5-1.5H4.5A1.5 1.5 0 0 1 3 16V5.5Z"
+                      fill="currentColor"
+                      fillOpacity="0.95"
+                    />
+                    <path
+                      d="M21 5.5C21 4.67 20.33 4 19.5 4H14a2 2 0 0 0-2 2v13a1.5 1.5 0 0 1 1.5-1.5h6A1.5 1.5 0 0 0 21 16V5.5Z"
+                      fill="currentColor"
+                      fillOpacity="0.8"
+                    />
+                  </svg>
+                  <span
+                    className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-secondary animate-twinkle"
+                    aria-hidden="true"
+                  />
+                </span>
+                <span className="leading-none tracking-tight">
+                  무<span className="text-accent-pink">북</span>
+                </span>
+              </Link>
+            </div>
             <p className="text-xs text-text-lighter">
               &copy; 2026 무북(moobook). 아이들의 꿈을 동화책으로 만듭니다.
             </p>
