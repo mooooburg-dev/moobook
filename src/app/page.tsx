@@ -90,7 +90,7 @@ export default function Home() {
           {/* 사진 컨테이너 - 가로 길이를 더 키워 웅장한 느낌을 주되 상하 잘림은 최소화 */}
           <div className="relative w-full max-w-[1100px] xl:max-w-[1300px] h-full mx-auto">
             <Image
-              src="/images/IMG_3922.jpg"
+              src="/images/hero-child.jpg"
               alt="동화책을 읽고 있는 아이"
               fill
               sizes="(max-width: 1100px) 100vw, 1300px"
