@@ -1,109 +1,113 @@
 import type { Scenario } from "@/types";
 
-const CHARACTER =
-  "the same Korean child with short brown hair, wearing a light blue fluffy hooded jacket, ";
+const STYLE =
+  "warm watercolor children's book illustration, soft pastel colors, gentle lighting, storybook atmosphere";
 
 export const forestAdventure: Scenario = {
   id: "forest-adventure",
   title: "숲속 대모험",
-  description: "신비로운 숲속에서 동물 친구들과 함께하는 모험 이야기",
-  targetAge: "3-7세",
+  description: "마법의 숲에서 동물 친구들과 별빛 열매를 찾는 모험",
+  category: "adventure",
+  targetAge: "3~6세",
   pageCount: 12,
+  coverPrompt: `A magical forest entrance with glowing light streaming through ancient trees, a winding path leading into the woods, butterflies and fireflies dancing in the air, ${STYLE}`,
+  educationalMessage:
+    "용기를 내어 새로운 것에 도전하고, 자연과 친구를 소중히 여기는 마음을 배워요.",
   pages: [
     {
       pageNumber: 1,
-      text: "어느 화창한 아침, {childName}(이)는 집 앞에서 반짝이는 숲 입구를 발견했어요. 초록빛 나뭇잎 사이로 따스한 햇살이 쏟아지고 있었지요.",
-      prompt:
-        CHARACTER +
-        "walking into a magical forest entrance on a sunny morning, cheerful expression, warm watercolor illustration style, children's book art, soft lighting",
-      emotion: "excited",
-    },
-    {
-      pageNumber: 2,
-      text: "숲 속 오솔길을 따라 걸어가자, 귀여운 토끼 한 마리가 깡충깡충 뛰어왔어요. \"안녕! 나는 솜이야. 나랑 같이 숲속을 탐험할래?\"",
-      prompt:
-        CHARACTER +
-        "meeting a cute small rabbit at the forest entrance, the rabbit is hopping towards the child, watercolor illustration, children's book style",
+      text: "어느 화창한 아침, {childName}(이)는 집 뒤 언덕에서 반짝이는 빛을 발견했어요. \"저게 뭘까?\" 호기심이 뿅 솟아올랐어요.",
+      sceneDescription:
+        "집 뒤 언덕, 아침 햇살이 비치고 숲 입구에서 신비로운 빛이 새어 나옴. 나비 두 마리가 빛 쪽으로 날아가고 있음.",
+      illustrationPrompt: `A small hill behind a cozy cottage, morning sunlight, a mysterious glow emanating from a forest entrance, two butterflies flying toward the light, ${STYLE}`,
       emotion: "curious",
     },
     {
+      pageNumber: 2,
+      text: "빛을 따라 숲 속으로 살금살금 들어가자, 귀여운 토끼 한 마리가 깡충깡충 뛰어왔어요. \"안녕! 나는 솜이야. 숲이 큰일 났어!\"",
+      sceneDescription:
+        "숲 입구 오솔길, 초록 나뭇잎 사이로 빛이 비침. 작은 흰 토끼가 급하게 뛰어오는 모습.",
+      illustrationPrompt: `A forest trail entrance with dappled sunlight through green leaves, a small white rabbit hopping urgently along the path, wildflowers along the trail edges, ${STYLE}`,
+      emotion: "surprised",
+    },
+    {
       pageNumber: 3,
-      text: "솜이를 따라가니 반짝반짝 빛나는 버섯들이 길을 만들고 있었어요. 파란색, 보라색, 분홍색… 마치 무지개 같았지요!",
-      prompt:
-        CHARACTER +
-        "walking along a path of glowing magical mushrooms in a forest with a rabbit, fantasy watercolor illustration, soft ethereal lighting",
-      emotion: "wonder",
+      text: "\"숲의 별빛 열매가 사라졌어! 별빛 열매가 없으면 숲이 어둠에 잠기고 말아.\" 솜이의 눈에 눈물이 글썽글썽했어요.",
+      sceneDescription:
+        "숲 속 커다란 나무 앞, 나무 꼭대기의 빈 가지가 보임. 주변이 약간 어둡고 시든 꽃들이 있음.",
+      illustrationPrompt: `A large ancient tree in the forest with empty branches at the top, slightly dim surroundings, some wilting flowers at the base, a sad atmosphere, ${STYLE}`,
+      emotion: "scared",
     },
     {
       pageNumber: 4,
-      text: "버섯 길 끝에 아주 크고 오래된 참나무가 서 있었어요. 나무 꼭대기에서 부엉이 할아버지가 눈을 깜빡이며 내려다보았어요.",
-      prompt:
-        CHARACTER +
-        "looking up at a wise owl sitting in a large oak tree, magical forest setting, watercolor children's book illustration",
-      emotion: "awe",
-    },
-    {
-      pageNumber: 5,
-      text: "\"호호, 반가워! 이 숲 어딘가에 아주 특별한 보물이 숨겨져 있단다. 용기 있는 친구만 찾을 수 있지. 한번 찾아볼래?\" 부엉이 할아버지가 다정하게 물었어요.",
-      prompt:
-        CHARACTER +
-        "listening to a wise owl speaking from a tree branch, mysterious atmosphere with sparkles, watercolor illustration style",
-      emotion: "intrigued",
-    },
-    {
-      pageNumber: 6,
-      text: "{childName}(이)가 힘차게 고개를 끄덕이자, 부엉이 할아버지가 날개 사이에서 오래된 지도를 꺼내 주었어요. 지도에는 별 모양 표시가 반짝이고 있었지요.",
-      prompt:
-        CHARACTER +
-        "receiving an old treasure map from an owl, the map glows slightly, forest background, watercolor children's illustration",
+      text: "{childName}(이)가 주먹을 꼭 쥐었어요. \"내가 찾아줄게! 같이 가자, 솜이!\" 용기가 마구마구 솟아났어요.",
+      sceneDescription:
+        "숲 속 갈림길, 세 갈래 길이 나뉘어 있음. 각 길 위에 희미한 빛의 화살표가 떠 있음.",
+      illustrationPrompt: `A forest crossroads with three diverging paths, faint glowing arrow signs floating above each path, magical mist at ground level, ${STYLE}`,
       emotion: "determined",
     },
     {
+      pageNumber: 5,
+      text: "반짝반짝 빛나는 버섯 길을 따라가니, 부엉이 할아버지가 나무 위에서 눈을 깜빡였어요. \"호호, 별빛 열매를 찾으려면 세 가지 시험을 통과해야 한단다.\"",
+      sceneDescription:
+        "발광 버섯이 줄지어 있는 숲 속 길. 큰 참나무 위에 부엉이가 앉아 있음. 파란, 보라, 분홍 버섯들.",
+      illustrationPrompt: `A forest path lined with glowing mushrooms in blue, purple, and pink, a wise owl perched on a large oak tree branch above, ${STYLE}`,
+      emotion: "curious",
+    },
+    {
+      pageNumber: 6,
+      text: "첫 번째 시험! 졸졸졸 흐르는 시냇물 앞에 다리가 없었어요. 그때 커다란 거북이가 느릿느릿 나타났어요. \"내 등에 타렴!\"",
+      sceneDescription:
+        "맑은 시냇물이 흐르고 건너편으로 갈 다리가 없음. 커다란 거북이가 물속에서 올라옴.",
+      illustrationPrompt: `A clear forest stream with no bridge, a large friendly turtle emerging from the water, stepping stones partially visible, lush vegetation on both banks, ${STYLE}`,
+      emotion: "excited",
+    },
+    {
       pageNumber: 7,
-      text: "지도를 따라 한참 걷다 보니 졸졸졸 흐르는 시냇물이 나타났어요. 그런데 다리가 없네! \"{childName}(아), 어떻게 건너지?\" 솜이가 걱정스럽게 말했어요.",
-      prompt:
-        CHARACTER +
-        "standing at a stream with no bridge, looking puzzled, forest stream scene, watercolor illustration for children",
-      emotion: "worried",
+      text: "{childName}(이)와 솜이는 거북이 등에 올라탔어요. 물 위를 둥실둥실 건너는 기분이 정말 신났어요! \"고마워, 거북이!\"",
+      sceneDescription:
+        "거북이 등 위에서 시냇물을 건너는 장면. 물이 반짝이고 물고기들이 뛰어오름.",
+      illustrationPrompt: `A large turtle carrying small passengers across a sparkling stream, fish jumping out of the water, sunlight reflecting on the surface, ${STYLE}`,
+      emotion: "happy",
     },
     {
       pageNumber: 8,
-      text: "그때 물속에서 커다란 거북이가 느긋하게 올라왔어요. \"걱정 마! 내 등에 타면 돼.\" {childName}(이)는 솜이와 함께 거북이 등에 올라탔어요. 물 위를 건너는 기분이 정말 신났어요!",
-      prompt:
-        CHARACTER +
-        "riding on a large friendly turtle crossing a stream, joyful expression, watercolor children's book style",
-      emotion: "grateful",
+      text: "두 번째 시험! 깜깜한 동굴이 나타났어요. {childName}(이)는 조금 무서웠지만, 솜이의 발을 꼭 잡고 한 발 한 발 앞으로 걸었어요.",
+      sceneDescription:
+        "어둡지만 벽에 희미한 발광 이끼가 붙어있는 동굴 입구. 안쪽에서 약한 빛이 보임.",
+      illustrationPrompt: `A cave entrance in the forest, dim but with bioluminescent moss on the walls creating a soft glow, a faint light visible deep inside, ${STYLE}`,
+      emotion: "scared",
     },
     {
       pageNumber: 9,
-      text: "시냇물을 건너니 눈이 번쩍 뜨이는 꽃밭이 펼쳐졌어요. 알록달록한 나비들이 {childName}(이)의 머리 위를 빙글빙글 날아다녔어요.",
-      prompt:
-        CHARACTER +
-        "walking through a beautiful flower meadow with colorful butterflies dancing around, dreamy watercolor illustration",
-      emotion: "joyful",
+      text: "동굴 안에서 반딧불이 수백 마리가 팡! 하고 빛을 터뜨렸어요. 캄캄했던 동굴이 별하늘처럼 반짝반짝 빛났어요!",
+      sceneDescription:
+        "동굴 내부가 수백 마리의 반딧불이로 가득 차 환하게 빛나는 장면. 천장이 별하늘처럼 보임.",
+      illustrationPrompt: `Inside a cave illuminated by hundreds of fireflies, the ceiling glowing like a starry sky, magical and warm atmosphere, sparkling light everywhere, ${STYLE}`,
+      emotion: "surprised",
     },
     {
       pageNumber: 10,
-      text: "꽃밭 한가운데, 햇빛을 받아 반짝반짝 빛나는 작은 상자가 놓여 있었어요. \"찾았다! 이게 바로 보물이야!\" {childName}(이)가 두 눈을 동그랗게 뜨며 외쳤어요.",
-      prompt:
-        CHARACTER +
-        "finding a sparkling treasure chest in the middle of a flower meadow, excited expression, watercolor children's book illustration",
-      emotion: "thrilled",
+      text: "세 번째 시험! 높디높은 절벽 위에 별빛 열매가 빛나고 있었어요. {childName}(이)는 깊이 숨을 들이쉬고, 돌 하나하나를 꼭꼭 잡으며 올라갔어요.",
+      sceneDescription:
+        "숲 속 절벽, 꼭대기에 황금빛으로 빛나는 열매가 달린 나무가 보임. 절벽에 발 디딜 곳이 있음.",
+      illustrationPrompt: `A cliff face in the forest with handholds visible, at the top a small tree with a single golden glowing fruit, dramatic lighting from above, ${STYLE}`,
+      emotion: "determined",
     },
     {
       pageNumber: 11,
-      text: "상자를 조심조심 열어 보니, 안에는 별빛처럼 빛나는 예쁜 목걸이와 작은 편지가 들어 있었어요. 편지에는 이렇게 쓰여 있었지요. \"용기 있는 {childName}에게, 넌 정말 멋진 아이야!\"",
-      prompt:
-        CHARACTER +
-        "opening a treasure chest revealing a beautiful necklace and a letter, warm golden glow, watercolor illustration",
-      emotion: "touched",
+      text: "\"해냈다!\" {childName}(이)가 별빛 열매를 높이 들어올리자, 숲 전체가 환하게 빛나기 시작했어요. 시든 꽃들이 다시 활짝 피어났어요!",
+      sceneDescription:
+        "절벽 꼭대기에서 황금빛 열매를 높이 든 장면. 숲 전체에 빛이 퍼지고 꽃들이 피어남.",
+      illustrationPrompt: `A view from the top of a cliff, golden light radiating outward across the forest, flowers blooming below, the entire forest coming alive with color and light, ${STYLE}`,
+      emotion: "proud",
     },
     {
       pageNumber: 12,
-      text: "노을이 물드는 하늘 아래, {childName}(이)는 솜이, 부엉이 할아버지, 거북이와 함께 집으로 돌아왔어요. 가슴이 따뜻하고 발걸음이 가벼웠지요. 오늘은 정말 멋진 하루였어요!",
-      prompt:
-        CHARACTER +
-        "walking home from the forest with animal friends (rabbit, owl, turtle), big smile, sunset, warm watercolor children's book ending illustration",
+      text: "노을이 물드는 숲 속에서, 솜이와 부엉이 할아버지와 거북이가 함께 손을 흔들어 주었어요. \"또 놀러 와!\" {childName}(이)의 가슴이 따뜻하고, 발걸음이 가벼웠어요.",
+      sceneDescription:
+        "노을빛 숲 출구, 동물 친구들(토끼, 부엉이, 거북이)이 손을 흔들고 있음. 숲이 건강하게 빛남.",
+      illustrationPrompt: `A forest exit at sunset, animal friends (rabbit, owl, turtle) waving goodbye, the forest glowing with warm golden light, a path leading home, ${STYLE}`,
       emotion: "happy",
     },
   ],
