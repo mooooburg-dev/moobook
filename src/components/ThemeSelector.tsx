@@ -21,6 +21,54 @@ const themeConfig: Record<ThemeId, { emoji: string; bgColor: string; borderColor
     borderColor: "border-accent-blue",
     selectedBg: "bg-indigo-50",
   },
+  "ocean-friends": {
+    emoji: "🐠",
+    bgColor: "bg-cyan-50",
+    borderColor: "border-cyan-400",
+    selectedBg: "bg-cyan-50",
+  },
+  "dinosaur-world": {
+    emoji: "🦕",
+    bgColor: "bg-amber-50",
+    borderColor: "border-amber-400",
+    selectedBg: "bg-amber-50",
+  },
+  "fairy-kingdom": {
+    emoji: "🧚",
+    bgColor: "bg-pink-50",
+    borderColor: "border-pink-400",
+    selectedBg: "bg-pink-50",
+  },
+  "animal-school": {
+    emoji: "🐻",
+    bgColor: "bg-yellow-50",
+    borderColor: "border-yellow-400",
+    selectedBg: "bg-yellow-50",
+  },
+  "time-travel": {
+    emoji: "⏰",
+    bgColor: "bg-violet-50",
+    borderColor: "border-violet-400",
+    selectedBg: "bg-violet-50",
+  },
+  "cooking-magic": {
+    emoji: "🧁",
+    bgColor: "bg-rose-50",
+    borderColor: "border-rose-400",
+    selectedBg: "bg-rose-50",
+  },
+  "music-land": {
+    emoji: "🎵",
+    bgColor: "bg-blue-50",
+    borderColor: "border-blue-400",
+    selectedBg: "bg-blue-50",
+  },
+  "superhero-day": {
+    emoji: "🦸",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-400",
+    selectedBg: "bg-red-50",
+  },
 };
 
 export default function ThemeSelector({

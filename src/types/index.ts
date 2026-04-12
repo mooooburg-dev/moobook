@@ -7,7 +7,17 @@ export type BookStatus =
   | "shipped"
   | "completed";
 
-export type ThemeId = "forest-adventure" | "space-explorer";
+export type ThemeId =
+  | "forest-adventure"
+  | "space-explorer"
+  | "ocean-friends"
+  | "dinosaur-world"
+  | "fairy-kingdom"
+  | "animal-school"
+  | "time-travel"
+  | "cooking-magic"
+  | "music-land"
+  | "superhero-day";
 
 export type PaymentStatus = "pending" | "paid" | "refunded";
 
@@ -44,9 +54,19 @@ export interface Order {
   created_at: string;
 }
 
+export type ScenarioCategory =
+  | "adventure"
+  | "fantasy"
+  | "education"
+  | "daily-life"
+  | "science";
+
 export interface ScenarioPage {
   pageNumber: number;
   text: string;
+  sceneDescription: string;
+  illustrationPrompt: string;
+  /** @deprecated Use illustrationPrompt instead */
   prompt: string;
   emotion: string;
 }
@@ -55,6 +75,8 @@ export interface Scenario {
   id: ThemeId;
   title: string;
   description: string;
+  category: ScenarioCategory;
+  educationMessage: string;
   targetAge: string;
   pageCount: number;
   pages: ScenarioPage[];
