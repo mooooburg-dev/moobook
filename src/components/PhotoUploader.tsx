@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import Image from "next/image";
 import { validateFacePhoto } from "@/lib/utils/face-detection";
 import Button from "@/components/ui/Button";
 
@@ -39,17 +40,20 @@ export default function PhotoUploader({ onPhotoSelected }: PhotoUploaderProps) {
   return (
     <div className="w-full max-w-md mx-auto">
       <label
-        className={`frame-border flex flex-col items-center justify-center w-full h-64 cursor-pointer transition-all duration-300 ${
+        className={`frame-border relative flex flex-col items-center justify-center w-full h-64 cursor-pointer transition-all duration-300 ${
           preview
             ? ""
             : "hover:shadow-lg"
         }`}
       >
         {preview ? (
-          <img
+          <Image
             src={preview}
             alt="업로드된 사진"
-            className="w-full h-full object-cover rounded-2xl"
+            fill
+            className="object-cover rounded-2xl"
+            sizes="(max-width: 448px) 100vw, 448px"
+            unoptimized
           />
         ) : (
           <div className="flex flex-col items-center gap-3 text-text-light">

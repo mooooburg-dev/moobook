@@ -19,16 +19,16 @@ const TOTAL_DURATION_MS = 90000;
 
 export default function GenerationProgress() {
   const [elapsed, setElapsed] = useState(0);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const start = Date.now();
     const timer = setInterval(() => {
       setElapsed(Date.now() - start);
     }, 200);
     return () => clearInterval(timer);
   }, []);
+
+  const mounted = elapsed > 0;
 
   // 현재 경과 시간에 해당하는 단계 찾기
   let currentStepIndex = 0;

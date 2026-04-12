@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import Card from "@/components/ui/Card";
 import type { Order } from "@/types";
 
@@ -17,32 +18,19 @@ const shippingLabels: Record<string, string> = {
 };
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // TODO: Supabase에서 주문 목록 조회
-    setLoading(false);
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-20 text-center text-gray-500">
-        불러오는 중...
-      </div>
-    );
-  }
+  // TODO: Supabase에서 주문 목록 조회
+  const [orders] = useState<Order[]>([]);
 
   if (orders.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <p className="text-gray-500">아직 주문 내역이 없어요.</p>
-        <a
+        <Link
           href="/create"
           className="inline-block mt-4 text-violet-600 font-medium hover:underline"
         >
           동화책 만들러 가기
-        </a>
+        </Link>
       </div>
     );
   }

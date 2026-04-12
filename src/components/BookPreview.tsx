@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Button from "@/components/ui/Button";
 
 interface BookPreviewProps {
@@ -24,10 +25,12 @@ export default function BookPreview({
       <div className="frame-border">
         <div className="relative aspect-3/4 bg-peach rounded-xl overflow-hidden">
           {pages[currentPage] ? (
-            <img
+            <Image
               src={pages[currentPage]}
               alt={`페이지 ${currentPage + 1}`}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
+              sizes="(max-width: 512px) 100vw, 512px"
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-text-lighter gap-2">

@@ -13,7 +13,7 @@ export default function BookDetailPage() {
   const router = useRouter();
   const [book, setBook] = useState<Book | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showLoading, setShowLoading] = useState(true);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const generateTriggered = useRef(false);
 
   const fetchBook = useCallback(async () => {
@@ -46,10 +46,7 @@ export default function BookDetailPage() {
       const bookData = await fetchBook();
       if (!bookData) return;
 
-      if (bookData.status === "preview_ready" || bookData.status === "paid") {
-        // 이미 완료된 상태면 로딩 화면 스킵
-        setShowLoading(false);
-      }
+      setInitialLoaded(true);
 
       // pending 상태면 AI 생성 트리거 (fire-and-forget, await 안 함)
       if (bookData.status === "pending" && !generateTriggered.current) {
@@ -72,17 +69,17 @@ export default function BookDetailPage() {
   }, [fetchBook]);
 
   // 상태 폴링 (3초 간격)
+  const bookStatus = book?.status;
   useEffect(() => {
-    if (!book) return;
-    if (book.status === "preview_ready" || book.status === "paid") {
-      // 생성 완료 → 로딩 해제
-      setShowLoading(false);
-      return;
-    }
+    if (!bookStatus) return;
+    if (bookStatus === "preview_ready" || bookStatus === "paid") return;
 
     const interval = setInterval(fetchBook, 3000);
     return () => clearInterval(interval);
-  }, [book?.status, fetchBook]);
+  }, [bookStatus, fetchBook]);
+
+  const isReady = book?.status === "preview_ready" || book?.status === "paid";
+  const showLoading = !initialLoaded || !isReady;
 
   if (error) {
     return (
