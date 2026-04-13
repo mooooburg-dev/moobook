@@ -8,9 +8,9 @@ import type { ThemeId, ScenarioCategory } from "@/types";
 
 const categoryLabel: Record<ScenarioCategory, string> = {
   adventure: "모험",
-  fantasy: "판타지",
-  education: "교육",
-  "daily-life": "일상",
+  "daily-life": "일상생활",
+  emotion: "감정/성장",
+  celebration: "기념일",
   science: "과학",
 };
 

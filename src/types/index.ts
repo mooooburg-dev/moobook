@@ -12,12 +12,12 @@ export type ThemeId =
   | "space-explorer"
   | "ocean-friends"
   | "dinosaur-world"
-  | "fairy-kingdom"
   | "animal-school"
-  | "time-travel"
   | "cooking-magic"
-  | "music-land"
-  | "superhero-day";
+  | "brushing-hero"
+  | "bath-mission"
+  | "first-day-school"
+  | "birthday-adventure";
 
 export type PaymentStatus = "pending" | "paid" | "refunded";
 
@@ -56,9 +56,9 @@ export interface Order {
 
 export type ScenarioCategory =
   | "adventure"
-  | "fantasy"
-  | "education"
   | "daily-life"
+  | "emotion"
+  | "celebration"
   | "science";
 
 export interface ScenarioPage {

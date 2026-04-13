@@ -1,7 +1,7 @@
 import type { Scenario } from "@/types";
 
-const CHARACTER =
-  "the same Korean child with short brown hair, wearing a light blue fluffy hooded jacket, ";
+const STYLE_SUFFIX =
+  ", warm watercolor children's book illustration, soft pastel colors, gentle lighting, storybook atmosphere, high quality, detailed background, no text, no words, no letters";
 
 export const spaceExplorer: Scenario = {
   id: "space-explorer",
@@ -17,11 +17,11 @@ export const spaceExplorer: Scenario = {
       text: "{childName}이(가) 밤하늘을 올려다보며 소원을 빌었어요. '별나라에 가보고 싶어!'",
       sceneDescription: "아이가 밤하늘을 올려다보며 소원을 비는 장면",
       illustrationPrompt:
-        CHARACTER +
-        "looking up at a starry night sky making a wish, magical atmosphere, watercolor illustration style, children's book art",
+        "a beautiful starry night sky viewed from a garden, countless twinkling stars and a crescent moon, a telescope on the grass, magical atmosphere, empty space in the lower center for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "looking up at a starry night sky making a wish, magical atmosphere, watercolor illustration style, children's book art",
+        "a beautiful starry night sky viewed from a garden, countless twinkling stars and a crescent moon, a telescope on the grass, magical atmosphere, empty space in the lower center for a character" +
+        STYLE_SUFFIX,
       emotion: "hopeful",
     },
     {
@@ -29,11 +29,11 @@ export const spaceExplorer: Scenario = {
       text: "그러자 정원에 작은 우주선이 나타났어요! 문이 스르륵 열렸어요.",
       sceneDescription: "정원에 착륙한 작은 우주선의 문이 열리는 장면",
       illustrationPrompt:
-        CHARACTER +
-        "standing in a garden watching a small colorful spaceship landing at night, door opening with light coming out, whimsical watercolor children's illustration",
+        "a small colorful spaceship landing in a garden at night, its door opening with bright light coming out, steam and sparkles around the landing site, starry sky above, empty space near the spaceship door for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "standing in a garden watching a small colorful spaceship landing at night, door opening with light coming out, whimsical watercolor children's illustration",
+        "a small colorful spaceship landing in a garden at night, its door opening with bright light coming out, steam and sparkles around the landing site, starry sky above, empty space near the spaceship door for a character" +
+        STYLE_SUFFIX,
       emotion: "amazed",
     },
     {
@@ -41,11 +41,11 @@ export const spaceExplorer: Scenario = {
       text: "우주선 안에는 귀여운 로봇 친구 '삐삐'가 있었어요. '우주 탐험 가자!'",
       sceneDescription: "우주선 조종석에서 로봇 삐삐를 만나는 장면",
       illustrationPrompt:
-        CHARACTER +
-        "meeting a cute small robot inside a colorful spaceship cockpit, friendly robot waving, watercolor children's book style",
+        "a colorful spaceship cockpit interior with buttons and screens, a cute small robot waving from the pilot seat, stars visible through the windshield, empty space in the co-pilot seat for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "meeting a cute small robot inside a colorful spaceship cockpit, friendly robot waving, watercolor children's book style",
+        "a colorful spaceship cockpit interior with buttons and screens, a cute small robot waving from the pilot seat, stars visible through the windshield, empty space in the co-pilot seat for a character" +
+        STYLE_SUFFIX,
       emotion: "excited",
     },
     {
@@ -53,11 +53,11 @@ export const spaceExplorer: Scenario = {
       text: "슈우웅! 우주선이 하늘로 날아올랐어요. 지구가 점점 작아졌어요.",
       sceneDescription: "우주선이 이륙하며 지구가 작아지는 장면",
       illustrationPrompt:
-        CHARACTER +
-        "looking out a spaceship window as it flies up through clouds into space, Earth getting smaller below, watercolor space illustration for children",
+        "a view from inside a spaceship window showing Earth getting smaller below, clouds parting, stars appearing, the vastness of space opening up, cockpit dashboard visible, empty space in front of the window for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "looking out a spaceship window as it flies up through clouds into space, Earth getting smaller below, watercolor space illustration for children",
+        "a view from inside a spaceship window showing Earth getting smaller below, clouds parting, stars appearing, the vastness of space opening up, cockpit dashboard visible, empty space in front of the window for a character" +
+        STYLE_SUFFIX,
       emotion: "thrilled",
     },
     {
@@ -65,11 +65,11 @@ export const spaceExplorer: Scenario = {
       text: "첫 번째로 도착한 곳은 무지개 행성이에요. 모든 것이 알록달록했어요!",
       sceneDescription: "알록달록한 무지개 행성을 탐험하는 장면",
       illustrationPrompt:
-        CHARACTER +
-        "exploring a rainbow-colored planet with colorful landscapes alongside a small robot, whimsical watercolor space illustration",
+        "a rainbow-colored planet landscape with colorful terrain, rainbow mountains and multicolored plants, a small robot exploring nearby, whimsical alien flowers, empty space in the lower center for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "exploring a rainbow-colored planet with colorful landscapes alongside a small robot, whimsical watercolor space illustration",
+        "a rainbow-colored planet landscape with colorful terrain, rainbow mountains and multicolored plants, a small robot exploring nearby, whimsical alien flowers, empty space in the lower center for a character" +
+        STYLE_SUFFIX,
       emotion: "wonder",
     },
     {
@@ -77,11 +77,11 @@ export const spaceExplorer: Scenario = {
       text: "무지개 행성에서 구름 솜사탕을 먹었어요. 달콤하고 푹신푹신!",
       sceneDescription: "무지개 행성에서 구름 솜사탕을 먹는 장면",
       illustrationPrompt:
-        CHARACTER +
-        "eating cloud cotton candy on a rainbow planet with a robot friend, playful and sweet atmosphere, watercolor illustration",
+        "fluffy cloud cotton candy growing on rainbow trees, a small robot reaching for one, playful and sweet alien landscape, candy-like rocks and pastel sky, empty space in the center for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "eating cloud cotton candy on a rainbow planet with a robot friend, playful and sweet atmosphere, watercolor illustration",
+        "fluffy cloud cotton candy growing on rainbow trees, a small robot reaching for one, playful and sweet alien landscape, candy-like rocks and pastel sky, empty space in the center for a character" +
+        STYLE_SUFFIX,
       emotion: "delighted",
     },
     {
@@ -89,11 +89,11 @@ export const spaceExplorer: Scenario = {
       text: "다음은 반짝이 행성! 보석처럼 빛나는 돌들이 가득했어요.",
       sceneDescription: "보석으로 가득한 반짝이 행성에 서 있는 장면",
       illustrationPrompt:
-        CHARACTER +
-        "standing on a planet covered with sparkling gems and crystals with a robot, everything glittering, watercolor space illustration for children",
+        "a planet surface covered with sparkling gems and crystals of all colors, everything glittering and refracting light, a small robot standing nearby in awe, crystal caves in the background, empty space in the foreground for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "standing on a planet covered with sparkling gems and crystals with a robot, everything glittering, watercolor space illustration for children",
+        "a planet surface covered with sparkling gems and crystals of all colors, everything glittering and refracting light, a small robot standing nearby in awe, crystal caves in the background, empty space in the foreground for a character" +
+        STYLE_SUFFIX,
       emotion: "awe",
     },
     {
@@ -101,11 +101,11 @@ export const spaceExplorer: Scenario = {
       text: "그런데 갑자기 우주선에 경고등이 켜졌어요! 연료가 부족해!",
       sceneDescription: "우주선 경고등이 켜진 긴박한 장면",
       illustrationPrompt:
-        CHARACTER +
-        "looking worried inside a spaceship with warning lights flashing alongside a robot, tense but not scary, watercolor children's illustration",
+        "a spaceship interior with red warning lights flashing, a fuel gauge showing nearly empty, a worried small robot looking at the dashboard, tense but not scary atmosphere, empty space near the controls for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "looking worried inside a spaceship with warning lights flashing alongside a robot, tense but not scary, watercolor children's illustration",
+        "a spaceship interior with red warning lights flashing, a fuel gauge showing nearly empty, a worried small robot looking at the dashboard, tense but not scary atmosphere, empty space near the controls for a character" +
+        STYLE_SUFFIX,
       emotion: "worried",
     },
     {
@@ -113,11 +113,11 @@ export const spaceExplorer: Scenario = {
       text: "'걱정 마! 별빛 에너지를 모으면 돼!' 삐삐가 말했어요.",
       sceneDescription: "삐삐가 별빛 에너지 해결책을 알려주는 장면",
       illustrationPrompt:
-        CHARACTER +
-        "looking hopeful as a robot points at stars through a spaceship window, explaining the plan, watercolor children's book style",
+        "a spaceship window showing brilliant stars outside, a small robot pointing at the stars excitedly, star charts on a screen, hopeful atmosphere, empty space beside the robot for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "looking hopeful as a robot points at stars through a spaceship window, explaining the plan, watercolor children's book style",
+        "a spaceship window showing brilliant stars outside, a small robot pointing at the stars excitedly, star charts on a screen, hopeful atmosphere, empty space beside the robot for a character" +
+        STYLE_SUFFIX,
       emotion: "hopeful",
     },
     {
@@ -125,11 +125,11 @@ export const spaceExplorer: Scenario = {
       text: "{childName}이(가) 우주선 밖으로 나가 별빛을 모았어요. 반짝반짝 빛이 모여들었어요!",
       sceneDescription: "우주복을 입고 별빛을 모으는 용감한 장면",
       illustrationPrompt:
-        CHARACTER +
-        "in a cute spacesuit floating in space collecting starlight into a jar, magical glowing particles, watercolor illustration",
+        "outer space with magical glowing starlight particles gathering into a jar, sparkling cosmic dust, the spaceship floating nearby, a vast starfield background, empty space in the center for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "in a cute spacesuit floating in space collecting starlight into a jar, magical glowing particles, watercolor illustration",
+        "outer space with magical glowing starlight particles gathering into a jar, sparkling cosmic dust, the spaceship floating nearby, a vast starfield background, empty space in the center for a character" +
+        STYLE_SUFFIX,
       emotion: "brave",
     },
     {
@@ -137,11 +137,11 @@ export const spaceExplorer: Scenario = {
       text: "별빛 에너지로 우주선이 다시 움직이기 시작했어요! 이제 집으로!",
       sceneDescription: "별빛 에너지로 우주선이 되살아나 지구로 향하는 장면",
       illustrationPrompt:
-        CHARACTER +
-        "cheering inside a spaceship powered by starlight energy zooming through space toward Earth, trail of sparkles, watercolor children's book illustration",
+        "a spaceship powered by starlight energy zooming through space toward Earth, trail of sparkles behind it, Earth visible in the distance, a small robot cheering inside, triumphant atmosphere, empty space in the cockpit for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "cheering inside a spaceship powered by starlight energy zooming through space toward Earth, trail of sparkles, watercolor children's book illustration",
+        "a spaceship powered by starlight energy zooming through space toward Earth, trail of sparkles behind it, Earth visible in the distance, a small robot cheering inside, triumphant atmosphere, empty space in the cockpit for a character" +
+        STYLE_SUFFIX,
       emotion: "relieved",
     },
     {
@@ -149,11 +149,11 @@ export const spaceExplorer: Scenario = {
       text: "집에 돌아온 {childName}이(가) 별 모양 목걸이를 꼭 쥐었어요. '또 모험하자, 삐삐!'",
       sceneDescription: "침대에서 별 목걸이를 쥐고 삐삐와 작별하는 마무리 장면",
       illustrationPrompt:
-        CHARACTER +
-        "back in bed holding a star-shaped necklace, robot friend waving goodbye through the window, warm night scene, watercolor illustration",
+        "a cozy bedroom at night, a star-shaped necklace glowing on the pillow, a small robot friend waving goodbye through the window, warm night scene with moonlight, empty space on the bed for a character" +
+        STYLE_SUFFIX,
       prompt:
-        CHARACTER +
-        "back in bed holding a star-shaped necklace, robot friend waving goodbye through the window, warm night scene, watercolor illustration",
+        "a cozy bedroom at night, a star-shaped necklace glowing on the pillow, a small robot friend waving goodbye through the window, warm night scene with moonlight, empty space on the bed for a character" +
+        STYLE_SUFFIX,
       emotion: "content",
     },
   ],

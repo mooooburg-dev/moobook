@@ -3,39 +3,39 @@ import { forestAdventure } from "./forest-adventure";
 import { spaceExplorer } from "./space-explorer";
 import { oceanFriends } from "./ocean-friends";
 import { dinosaurWorld } from "./dinosaur-world";
-import { fairyKingdom } from "./fairy-kingdom";
 import { animalSchool } from "./animal-school";
-import { timeTravel } from "./time-travel";
 import { cookingMagic } from "./cooking-magic";
-import { musicLand } from "./music-land";
-import { superheroDay } from "./superhero-day";
+import { brushingHero } from "./brushing-hero";
+import { bathMission } from "./bath-mission";
+import { firstDaySchool } from "./first-day-school";
+import { birthdayAdventure } from "./birthday-adventure";
 
 export const scenarios: Record<ThemeId, Scenario> = {
   "forest-adventure": forestAdventure,
   "space-explorer": spaceExplorer,
   "ocean-friends": oceanFriends,
   "dinosaur-world": dinosaurWorld,
-  "fairy-kingdom": fairyKingdom,
   "animal-school": animalSchool,
-  "time-travel": timeTravel,
   "cooking-magic": cookingMagic,
-  "music-land": musicLand,
-  "superhero-day": superheroDay,
+  "brushing-hero": brushingHero,
+  "bath-mission": bathMission,
+  "first-day-school": firstDaySchool,
+  "birthday-adventure": birthdayAdventure,
 };
 
 export const categoryLabels: Record<ScenarioCategory, string> = {
   adventure: "모험",
-  fantasy: "판타지",
-  education: "교육",
   "daily-life": "일상생활",
+  emotion: "감정/성장",
+  celebration: "기념일",
   science: "과학",
 };
 
 export const categoryOrder: ScenarioCategory[] = [
   "adventure",
-  "fantasy",
-  "education",
   "daily-life",
+  "emotion",
+  "celebration",
   "science",
 ];
 

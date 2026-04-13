@@ -6,17 +6,17 @@ import type { ScenarioCategory } from "@/types";
 
 const categoryLabel: Record<ScenarioCategory, string> = {
   adventure: "모험",
-  fantasy: "판타지",
-  education: "교육",
-  "daily-life": "일상",
+  "daily-life": "일상생활",
+  emotion: "감정/성장",
+  celebration: "기념일",
   science: "과학",
 };
 
 const categoryColor: Record<ScenarioCategory, string> = {
   adventure: "bg-orange-100 text-orange-700",
-  fantasy: "bg-purple-100 text-purple-700",
-  education: "bg-blue-100 text-blue-700",
   "daily-life": "bg-green-100 text-green-700",
+  emotion: "bg-yellow-100 text-yellow-700",
+  celebration: "bg-pink-100 text-pink-700",
   science: "bg-cyan-100 text-cyan-700",
 };
 
