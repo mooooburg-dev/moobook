@@ -79,7 +79,5 @@ export interface Scenario {
   educationMessage: string;
   targetAge: string;
   pageCount: number;
-  coverPrompt: string;
-  educationalMessage: string;
   pages: ScenarioPage[];
 }
