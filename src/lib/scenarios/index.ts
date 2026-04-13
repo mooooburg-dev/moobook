@@ -1,42 +1,42 @@
 import type { Scenario, ScenarioCategory, ThemeId } from "@/types";
 import { forestAdventure } from "./forest-adventure";
 import { spaceExplorer } from "./space-explorer";
-import { brushingHero } from "./brushing-hero";
-import { bathMission } from "./bath-mission";
-import { firstDaySchool } from "./first-day-school";
-import { newSibling } from "./new-sibling";
-import { birthdayAdventure } from "./birthday-adventure";
-import { santasGift } from "./santas-gift";
-import { firefighterMe } from "./firefighter-me";
-import { chefMe } from "./chef-me";
+import { oceanFriends } from "./ocean-friends";
+import { dinosaurWorld } from "./dinosaur-world";
+import { fairyKingdom } from "./fairy-kingdom";
+import { animalSchool } from "./animal-school";
+import { timeTravel } from "./time-travel";
+import { cookingMagic } from "./cooking-magic";
+import { musicLand } from "./music-land";
+import { superheroDay } from "./superhero-day";
 
 export const scenarios: Record<ThemeId, Scenario> = {
   "forest-adventure": forestAdventure,
   "space-explorer": spaceExplorer,
-  "brushing-hero": brushingHero,
-  "bath-mission": bathMission,
-  "first-day-school": firstDaySchool,
-  "new-sibling": newSibling,
-  "birthday-adventure": birthdayAdventure,
-  "santas-gift": santasGift,
-  "firefighter-me": firefighterMe,
-  "chef-me": chefMe,
+  "ocean-friends": oceanFriends,
+  "dinosaur-world": dinosaurWorld,
+  "fairy-kingdom": fairyKingdom,
+  "animal-school": animalSchool,
+  "time-travel": timeTravel,
+  "cooking-magic": cookingMagic,
+  "music-land": musicLand,
+  "superhero-day": superheroDay,
 };
 
 export const categoryLabels: Record<ScenarioCategory, string> = {
   adventure: "모험",
-  habit: "생활습관",
-  emotion: "감정/성장",
-  celebration: "기념일",
-  dream: "꿈/직업",
+  fantasy: "판타지",
+  education: "교육",
+  "daily-life": "일상생활",
+  science: "과학",
 };
 
 export const categoryOrder: ScenarioCategory[] = [
   "adventure",
-  "habit",
-  "emotion",
-  "celebration",
-  "dream",
+  "fantasy",
+  "education",
+  "daily-life",
+  "science",
 ];
 
 export function getScenario(themeId: ThemeId): Scenario {
