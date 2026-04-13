@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   if (scenarioId) {
     // 특정 시나리오 상세 조회
     const { data, error } = await supabase
-      .from("scenario_backgrounds")
+      .from("moobook_scenario_backgrounds")
       .select("*")
       .eq("scenario_id", scenarioId)
       .order("page_number", { ascending: true });
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
   // 전체 시나리오 현황 조회
   const { data, error } = await supabase
-    .from("scenario_backgrounds")
+    .from("moobook_scenario_backgrounds")
     .select("scenario_id, status");
 
   if (error) {
@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest) {
     const newStatus = action === "approve" ? "approved" : "rejected";
 
     const { error } = await supabase
-      .from("scenario_backgrounds")
+      .from("moobook_scenario_backgrounds")
       .update({
         status: newStatus,
         updated_at: new Date().toISOString(),

@@ -1,5 +1,8 @@
+-- 기존 테이블 삭제 (prefix 없이 만든 것)
+DROP TABLE IF EXISTS scenario_backgrounds;
+
 -- 배경 일러스트 사전 생성 테이블
-CREATE TABLE scenario_backgrounds (
+CREATE TABLE moobook_scenario_backgrounds (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   scenario_id text NOT NULL,
   page_number int NOT NULL,
@@ -13,11 +16,11 @@ CREATE TABLE scenario_backgrounds (
 );
 
 -- 인덱스: 시나리오별 조회 최적화
-CREATE INDEX idx_scenario_backgrounds_scenario_id ON scenario_backgrounds(scenario_id);
+CREATE INDEX idx_moobook_scenario_backgrounds_scenario_id ON moobook_scenario_backgrounds(scenario_id);
 
--- Storage 버킷: backgrounds (public, 영구 보존)
+-- Storage 버킷: moobook_backgrounds (public, 영구 보존)
 -- Supabase Dashboard에서 직접 생성 필요:
--- 버킷명: backgrounds
+-- 버킷명: moobook_backgrounds
 -- Public: true
 -- File size limit: 10MB
 -- Allowed MIME types: image/png, image/jpeg, image/webp

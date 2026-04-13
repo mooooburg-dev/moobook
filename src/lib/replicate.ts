@@ -185,7 +185,7 @@ async function generateSinglePage(
   return PLACEHOLDER_IMAGE(page.pageNumber);
 }
 
-// TODO: 사전 생성된 배경을 scenario_backgrounds에서 조회하고,
+// TODO: 사전 생성된 배경을 moobook_scenario_backgrounds에서 조회하고,
 // 해당 배경 위에 캐릭터를 합성하는 방식으로 전환 예정
 // 현재는 기존 실시간 생성 로직 유지
 

@@ -44,7 +44,7 @@ async function uploadToStorage(
   const path = `${scenarioId}/page_${String(pageNumber).padStart(2, "0")}.png`;
 
   const { error } = await supabase.storage
-    .from("backgrounds")
+    .from("moobook_backgrounds")
     .upload(path, buffer, {
       contentType: "image/png",
       upsert: true,
@@ -53,7 +53,7 @@ async function uploadToStorage(
   if (error) throw new Error(`Storage 업로드 실패: ${error.message}`);
 
   const { data: urlData } = supabase.storage
-    .from("backgrounds")
+    .from("moobook_backgrounds")
     .getPublicUrl(path);
 
   return urlData.publicUrl;
@@ -68,7 +68,7 @@ async function generateInBackground(scenarioId: ThemeId) {
 
   // 이미 completed/approved인 페이지 조회
   const { data: existing } = await supabase
-    .from("scenario_backgrounds")
+    .from("moobook_scenario_backgrounds")
     .select("page_number, status")
     .eq("scenario_id", scenarioId)
     .in("status", ["completed", "approved"]);
@@ -98,7 +98,7 @@ async function generateInBackground(scenarioId: ThemeId) {
 
     try {
       // upsert로 generating 상태 설정
-      await supabase.from("scenario_backgrounds").upsert(
+      await supabase.from("moobook_scenario_backgrounds").upsert(
         {
           scenario_id: scenarioId,
           page_number: page.pageNumber,
@@ -153,7 +153,7 @@ async function generateInBackground(scenarioId: ThemeId) {
 
       // DB 업데이트: completed
       await supabase
-        .from("scenario_backgrounds")
+        .from("moobook_scenario_backgrounds")
         .update({
           image_url: imageUrl,
           replicate_output_url: replicateOutputUrl,
@@ -175,7 +175,7 @@ async function generateInBackground(scenarioId: ThemeId) {
 
       // 실패 시 pending으로 복원
       await supabase
-        .from("scenario_backgrounds")
+        .from("moobook_scenario_backgrounds")
         .update({
           status: "pending",
           updated_at: new Date().toISOString(),
