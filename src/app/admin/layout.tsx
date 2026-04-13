@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 
 const menuItems = [
   { href: "/admin/scenarios", label: "Scenarios", ready: true },
+  { href: "/admin/backgrounds", label: "Backgrounds", ready: true },
   { href: "/admin/orders", label: "Orders", ready: false },
   { href: "/admin/books", label: "Books", ready: false },
 ];

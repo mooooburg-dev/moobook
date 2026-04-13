@@ -81,3 +81,22 @@ export interface Scenario {
   pageCount: number;
   pages: ScenarioPage[];
 }
+
+export type BackgroundStatus =
+  | "pending"
+  | "generating"
+  | "completed"
+  | "approved"
+  | "rejected";
+
+export interface ScenarioBackground {
+  id: string;
+  scenario_id: string;
+  page_number: number;
+  illustration_prompt: string;
+  image_url: string | null;
+  replicate_output_url: string | null;
+  status: BackgroundStatus;
+  created_at: string;
+  updated_at: string;
+}
