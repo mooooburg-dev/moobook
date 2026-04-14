@@ -2,6 +2,7 @@ import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
+import { replaceChildName } from "./korean-name";
 
 interface PdfGenerateInput {
   bookId: string;
@@ -22,13 +23,6 @@ const TEXT_HEIGHT_RATIO = 0.3;
 const PADDING = 30;
 const FONT_SIZE = 16;
 const LINE_HEIGHT = FONT_SIZE * 1.6;
-
-/**
- * 텍스트에서 {childName}과 {name} 플레이스홀더를 실제 이름으로 치환
- */
-function replaceChildName(text: string, childName: string): string {
-  return text.replace(/\{childName\}|\{name\}/g, childName);
-}
 
 /**
  * 이미지 URL에서 바이트 데이터를 가져옴
