@@ -39,13 +39,16 @@ async function uploadToStorage(
   if (!res.ok) throw new Error(`이미지 다운로드 실패: ${res.status}`);
 
   const buffer = await res.arrayBuffer();
-  const path = `${scenarioId}/char_page_${String(pageNumber).padStart(2, "0")}.png`;
+  // 재생성마다 새로운 URL이 나오도록 타임스탬프를 경로에 포함.
+  // 브라우저/CDN 캐시로 이전 이미지가 그대로 보이는 문제 방지.
+  const ts = Date.now();
+  const path = `${scenarioId}/char_page_${String(pageNumber).padStart(2, "0")}_${ts}.png`;
 
   const { error } = await supabase.storage
     .from("moobook_backgrounds")
     .upload(path, buffer, {
       contentType: "image/png",
-      upsert: true,
+      upsert: false,
     });
 
   if (error) throw new Error(`Storage 업로드 실패: ${error.message}`);

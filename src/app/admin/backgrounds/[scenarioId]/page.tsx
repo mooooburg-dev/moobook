@@ -138,7 +138,13 @@ export default function AdminBackgroundDetailPage() {
         alert("1페이지 생성 요청 실패");
         return;
       }
-      await fetchBackgrounds();
+      setBackgrounds((prev) =>
+        prev.map((b) =>
+          b.page_number === 1
+            ? { ...b, character_status: "generating", character_image_url: null }
+            : b
+        )
+      );
     } finally {
       setActionLoading(null);
     }
@@ -189,7 +195,13 @@ export default function AdminBackgroundDetailPage() {
         alert(data?.error ?? "캐릭터 생성 요청 실패");
         return;
       }
-      await fetchBackgrounds();
+      setBackgrounds((prev) =>
+        prev.map((b) =>
+          willRun.includes(b.page_number)
+            ? { ...b, character_status: "generating", character_image_url: null }
+            : b
+        )
+      );
     } finally {
       setCharAllLoading(false);
     }
@@ -260,8 +272,22 @@ export default function AdminBackgroundDetailPage() {
       });
       if (!res.ok) {
         alert("재생성 요청 실패");
+        return;
       }
-      await fetchBackgrounds();
+      // 낙관적 업데이트: 이 상태가 hasGenerating=true를 만들어 3초 폴링을 가동시킴.
+      // 여기서 fetchBackgrounds()를 호출하면 서버의 아직 비동기 반영 전 pending 상태로
+      // 덮어쓰여 폴링이 시작되지 않는 레이스가 발생하므로 호출하지 않는다.
+      setBackgrounds((prev) =>
+        prev.map((b) =>
+          b.page_number === pageNumber
+            ? {
+                ...b,
+                character_status: "generating",
+                character_image_url: null,
+              }
+            : b
+        )
+      );
     } finally {
       setActionLoading(null);
     }
@@ -633,6 +659,7 @@ export default function AdminBackgroundDetailPage() {
                     {hasChar && bg?.character_image_url ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
+                        key={bg.character_image_url}
                         src={bg.character_image_url}
                         alt={`Character p${page.pageNumber}`}
                         className="absolute inset-0 w-full h-full object-cover"
