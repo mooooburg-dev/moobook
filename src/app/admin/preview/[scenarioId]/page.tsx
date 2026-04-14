@@ -41,6 +41,20 @@ export default function AdminPreviewDetailPage() {
   const [bookShape, setBookShape] = useState<"portrait" | "square">("portrait");
   const [viewMode, setViewMode] = useState<"scroll" | "spread">("spread");
   const [spreadIndex, setSpreadIndex] = useState<number>(0);
+  const [imageSource, setImageSource] = useState<"character" | "background">(
+    "character"
+  );
+
+  function pickImage(bg: ScenarioBackground | undefined): string | null {
+    if (!bg) return null;
+    if (imageSource === "character") {
+      const charReady =
+        bg.character_status === "completed" ||
+        bg.character_status === "approved";
+      if (charReady && bg.character_image_url) return bg.character_image_url;
+    }
+    return bg.image_url ?? null;
+  }
 
   const fetchBackgrounds = useCallback(async () => {
     try {
@@ -95,8 +109,17 @@ export default function AdminPreviewDetailPage() {
 
   const coverImageUrl = useMemo(() => {
     const first = scenario?.pages[0];
-    return first ? bgMap.get(first.pageNumber)?.image_url ?? null : null;
-  }, [scenario, bgMap]);
+    if (!first) return null;
+    const bg = bgMap.get(first.pageNumber);
+    if (!bg) return null;
+    if (imageSource === "character") {
+      const charReady =
+        bg.character_status === "completed" ||
+        bg.character_status === "approved";
+      if (charReady && bg.character_image_url) return bg.character_image_url;
+    }
+    return bg.image_url ?? null;
+  }, [scenario, bgMap, imageSource]);
 
   useEffect(() => {
     if (viewMode !== "spread") return;
@@ -134,7 +157,7 @@ export default function AdminPreviewDetailPage() {
     const page = scenario!.pages.find((p) => p.pageNumber === pageNumber);
     if (!page) return null;
     const bg = bgMap.get(page.pageNumber);
-    const imageUrl = bg?.image_url ?? null;
+    const imageUrl = pickImage(bg);
     const sentences = splitSentences(replaceName(page.text));
 
     if (overlayMode) {
@@ -522,6 +545,34 @@ export default function AdminPreviewDetailPage() {
 
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-gray-700">
+            이미지 소스
+          </label>
+          <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
+            <button
+              onClick={() => setImageSource("character")}
+              className={`px-3 py-1.5 text-sm ${
+                imageSource === "character"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              캐릭터 포함
+            </button>
+            <button
+              onClick={() => setImageSource("background")}
+              className={`px-3 py-1.5 text-sm ${
+                imageSource === "background"
+                  ? "bg-gray-900 text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              배경만
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">
             아이 이름
           </label>
           <select
@@ -632,7 +683,7 @@ export default function AdminPreviewDetailPage() {
         <div className="flex flex-col items-center gap-10 py-4">
           {scenario.pages.map((page) => {
             const bg = bgMap.get(page.pageNumber);
-            const imageUrl = bg?.image_url ?? null;
+            const imageUrl = pickImage(bg);
 
             return (
               <div

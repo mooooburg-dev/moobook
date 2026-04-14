@@ -89,6 +89,13 @@ export type BackgroundStatus =
   | "approved"
   | "rejected";
 
+export type CharacterStatus =
+  | "pending"
+  | "generating"
+  | "completed"
+  | "approved"
+  | "rejected";
+
 export interface ScenarioBackground {
   id: string;
   scenario_id: string;
@@ -97,6 +104,10 @@ export interface ScenarioBackground {
   image_url: string | null;
   replicate_output_url: string | null;
   status: BackgroundStatus;
+  character_image_url: string | null;
+  character_status: CharacterStatus;
+  character_prompt: string | null;
+  reference_image_url: string | null;
   created_at: string;
   updated_at: string;
 }
