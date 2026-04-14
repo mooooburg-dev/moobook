@@ -80,8 +80,8 @@ export async function GET(request: NextRequest) {
 
 /**
  * PATCH /api/admin/backgrounds
- * body: { scenarioId, pageNumber, action: 'approve' | 'reject' }
- * 개별 배경 승인/거부
+ * body: { scenarioId, pageNumber, action: 'approve' | 'reject', target?: 'background' | 'character' }
+ * target 기본값은 'background'. 'character'면 character_status 컬럼을 업데이트.
  */
 export async function PATCH(request: NextRequest) {
   if (!(await verifyAdmin())) {
@@ -89,21 +89,36 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const { scenarioId, pageNumber, action } = await request.json();
+    const { scenarioId, pageNumber, action, target } = await request.json();
 
-    if (!scenarioId || !pageNumber || !["approve", "reject"].includes(action)) {
+    if (
+      !scenarioId ||
+      !pageNumber ||
+      !["approve", "reject", "reset"].includes(action)
+    ) {
       return NextResponse.json({ error: "잘못된 요청" }, { status: 400 });
     }
 
+    const useCharacter = target === "character";
+    if (target && !["background", "character"].includes(target)) {
+      return NextResponse.json({ error: "잘못된 target" }, { status: 400 });
+    }
+
     const supabase = createAdminClient();
-    const newStatus = action === "approve" ? "approved" : "rejected";
+    const newStatus =
+      action === "approve"
+        ? "approved"
+        : action === "reject"
+          ? "rejected"
+          : "pending";
+
+    const updatePayload = useCharacter
+      ? { character_status: newStatus, updated_at: new Date().toISOString() }
+      : { status: newStatus, updated_at: new Date().toISOString() };
 
     const { error } = await supabase
       .from("moobook_scenario_backgrounds")
-      .update({
-        status: newStatus,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("scenario_id", scenarioId)
       .eq("page_number", pageNumber);
 
