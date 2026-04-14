@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { getScenario } from "@/lib/scenarios";
+import { replaceChildName } from "@/lib/utils/korean-name";
 import type { ThemeId, ScenarioCategory } from "@/types";
 
 const categoryLabel: Record<ScenarioCategory, string> = {

@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
   // 전체 시나리오 현황 조회
   const { data, error } = await supabase
     .from("moobook_scenario_backgrounds")
-    .select("scenario_id, status");
+    .select("scenario_id, page_number, status, image_url")
+    .order("page_number", { ascending: true });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -54,9 +55,11 @@ export async function GET(request: NextRequest) {
     string,
     { total: number; completed: number; approved: number; generating: number }
   > = {};
+  const thumbnails: Record<string, string[]> = {};
 
   for (const themeId of Object.keys(scenarios) as ThemeId[]) {
     stats[themeId] = { total: scenarios[themeId].pageCount, completed: 0, approved: 0, generating: 0 };
+    thumbnails[themeId] = [];
   }
 
   for (const row of data ?? []) {
@@ -64,9 +67,15 @@ export async function GET(request: NextRequest) {
     if (row.status === "completed") stats[row.scenario_id].completed++;
     if (row.status === "approved") stats[row.scenario_id].approved++;
     if (row.status === "generating") stats[row.scenario_id].generating++;
+    if (
+      (row.status === "completed" || row.status === "approved") &&
+      row.image_url
+    ) {
+      thumbnails[row.scenario_id].push(row.image_url);
+    }
   }
 
-  return NextResponse.json({ stats });
+  return NextResponse.json({ stats, thumbnails });
 }
 
 /**
@@ -106,4 +115,31 @@ export async function PATCH(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "잘못된 요청" }, { status: 400 });
   }
+}
+
+/**
+ * DELETE /api/admin/backgrounds?scenarioId=xxx
+ * 시나리오의 모든 배경 레코드 삭제 (전체 재생성 준비)
+ */
+export async function DELETE(request: NextRequest) {
+  if (!(await verifyAdmin())) {
+    return NextResponse.json({ error: "인증 필요" }, { status: 401 });
+  }
+
+  const scenarioId = request.nextUrl.searchParams.get("scenarioId");
+  if (!scenarioId) {
+    return NextResponse.json({ error: "scenarioId 필요" }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("moobook_scenario_backgrounds")
+    .delete()
+    .eq("scenario_id", scenarioId);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
 }

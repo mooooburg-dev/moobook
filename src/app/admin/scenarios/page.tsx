@@ -26,7 +26,7 @@ export default function AdminScenariosPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Scenarios</h1>
+        <h1 className="text-2xl font-bold text-gray-900">시나리오</h1>
         <p className="text-sm text-gray-500 mt-1">
           {scenarios.length}개 시나리오
         </p>

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
 import { scenarios } from "@/lib/scenarios";
 import type { ScenarioBackground, ThemeId } from "@/types";
 
@@ -24,6 +23,7 @@ export default function AdminBackgroundDetailPage() {
   const [loading, setLoading] = useState(true);
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [regenAllLoading, setRegenAllLoading] = useState(false);
 
   const fetchBackgrounds = useCallback(async () => {
     try {
@@ -38,11 +38,17 @@ export default function AdminBackgroundDetailPage() {
     }
   }, [scenarioId]);
 
+  const hasGenerating = backgrounds.some((b) => b.status === "generating");
+
   useEffect(() => {
     fetchBackgrounds();
+  }, [fetchBackgrounds]);
+
+  useEffect(() => {
+    if (!hasGenerating) return;
     const interval = setInterval(fetchBackgrounds, 5000);
     return () => clearInterval(interval);
-  }, [fetchBackgrounds]);
+  }, [hasGenerating, fetchBackgrounds]);
 
   if (!scenario) {
     return (
@@ -75,6 +81,44 @@ export default function AdminBackgroundDetailPage() {
     }
   }
 
+  async function handleRegenerateAll() {
+    if (
+      !confirm(
+        `[${scenario.title}] 12페이지 전체를 삭제하고 다시 생성합니다.\n계속하시겠습니까?`
+      )
+    ) {
+      return;
+    }
+
+    setRegenAllLoading(true);
+    try {
+      // 1. 기존 레코드 전체 삭제
+      const delRes = await fetch(
+        `/api/admin/backgrounds?scenarioId=${scenarioId}`,
+        { method: "DELETE" }
+      );
+      if (!delRes.ok) {
+        alert("기존 데이터 삭제 실패");
+        return;
+      }
+
+      // 2. 생성 시작
+      const genRes = await fetch("/api/admin/generate-backgrounds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenarioId }),
+      });
+      if (!genRes.ok) {
+        alert("생성 시작 실패");
+        return;
+      }
+
+      await fetchBackgrounds();
+    } finally {
+      setRegenAllLoading(false);
+    }
+  }
+
   async function handleRegenerate(pageNumber: number) {
     setActionLoading(pageNumber);
     try {
@@ -102,17 +146,30 @@ export default function AdminBackgroundDetailPage() {
   return (
     <div>
       {/* 헤더 */}
-      <div className="mb-6">
+      <div className="mb-6 flex items-end justify-between gap-4">
+        <div>
+          <button
+            onClick={() => router.push("/admin/backgrounds")}
+            className="text-sm text-gray-500 hover:text-gray-700 mb-2 inline-block"
+          >
+            &larr; 목록으로
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">{scenario.title}</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {scenarioId} · {scenario.pageCount}페이지
+          </p>
+        </div>
         <button
-          onClick={() => router.push("/admin/backgrounds")}
-          className="text-sm text-gray-500 hover:text-gray-700 mb-2 inline-block"
+          onClick={handleRegenerateAll}
+          disabled={regenAllLoading || hasGenerating}
+          className="px-4 py-2 text-sm font-medium rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          &larr; 목록으로
+          {regenAllLoading
+            ? "처리 중..."
+            : hasGenerating
+              ? "생성 중..."
+              : "전체 재생성"}
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">{scenario.title}</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {scenarioId} · {scenario.pageCount}페이지
-        </p>
       </div>
 
       {loading ? (
@@ -133,18 +190,17 @@ export default function AdminBackgroundDetailPage() {
               >
                 {/* 이미지 영역 */}
                 <div
-                  className={`relative aspect-[3/4] bg-gray-50 ${
+                  className={`relative aspect-3/4 bg-gray-50 ${
                     hasImage ? "cursor-pointer" : ""
                   }`}
                   onClick={() => hasImage && bg?.image_url && setModalImage(bg.image_url)}
                 >
                   {hasImage && bg?.image_url ? (
-                    <Image
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
                       src={bg.image_url}
                       alt={`Page ${page.pageNumber}`}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="absolute inset-0 w-full h-full object-cover"
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full text-gray-300 text-sm">
@@ -226,11 +282,10 @@ export default function AdminBackgroundDetailPage() {
           onClick={() => setModalImage(null)}
         >
           <div className="relative max-w-3xl max-h-full">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={modalImage}
               alt="원본 이미지"
-              width={768}
-              height={1024}
               className="rounded-lg object-contain max-h-[90vh] w-auto"
               onClick={(e) => e.stopPropagation()}
             />

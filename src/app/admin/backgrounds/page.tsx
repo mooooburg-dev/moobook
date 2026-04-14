@@ -15,6 +15,7 @@ interface ScenarioStats {
 export default function AdminBackgroundsPage() {
   const allScenarios = getAllScenarios();
   const [stats, setStats] = useState<Record<string, ScenarioStats>>({});
+  const [thumbnails, setThumbnails] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
 
@@ -24,16 +25,40 @@ export default function AdminBackgroundsPage() {
       if (!res.ok) return;
       const data = await res.json();
       setStats(data.stats);
+      if (data.thumbnails) setThumbnails(data.thumbnails);
+
+      // 전체 페이지가 완료된 시나리오만 generatingIds에서 제거한다.
+      // (페이지 사이 Replicate rate-limit sleep 중에도 generating=0이 되므로,
+      // generating 카운트만으로 제거하면 폴링이 도중에 끊긴다.)
+      setGeneratingIds((prev) => {
+        const next = new Set(prev);
+        for (const id of prev) {
+          const s = data.stats[id];
+          if (!s) continue;
+          const ready = s.completed + s.approved;
+          if (ready >= s.total) next.delete(id);
+        }
+        return next.size === prev.size ? prev : next;
+      });
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // 생성 중인 시나리오가 있을 때만 폴링
+  const hasGenerating =
+    generatingIds.size > 0 ||
+    Object.values(stats).some((s) => s.generating > 0);
+
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 5000);
-    return () => clearInterval(interval);
   }, [fetchStats]);
+
+  useEffect(() => {
+    if (!hasGenerating) return;
+    const interval = setInterval(fetchStats, 1500);
+    return () => clearInterval(interval);
+  }, [hasGenerating, fetchStats]);
 
   async function handleGenerate(scenarioId: string) {
     setGeneratingIds((prev) => new Set(prev).add(scenarioId));
@@ -51,7 +76,11 @@ export default function AdminBackgroundsPage() {
         next.delete(scenarioId);
         return next;
       });
+      return;
     }
+
+    // 요청 직후 즉시 한 번 갱신해 0% 지연을 줄인다
+    fetchStats();
   }
 
   function getReadyCount(s: ScenarioStats | undefined): number {
@@ -70,7 +99,7 @@ export default function AdminBackgroundsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Backgrounds</h1>
+        <h1 className="text-2xl font-bold text-gray-900">일러스트 배경</h1>
         <p className="text-sm text-gray-500 mt-1">
           시나리오별 배경 일러스트 사전 생성 관리
         </p>
@@ -129,6 +158,25 @@ export default function AdminBackgroundsPage() {
                   </div>
                 </div>
 
+                {/* 썸네일 그리드 */}
+                {(thumbnails[scenario.id]?.length ?? 0) > 0 && (
+                  <div className="grid grid-cols-6 gap-1 mb-3">
+                    {thumbnails[scenario.id].map((url, i) => (
+                      <div
+                        key={i}
+                        className="aspect-3/4 bg-gray-100 rounded overflow-hidden"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={`${scenario.title} ${i + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* 버튼 */}
                 <div className="flex gap-2">
                   <button
@@ -138,6 +186,12 @@ export default function AdminBackgroundsPage() {
                   >
                     {isGenerating ? "생성 중..." : isComplete ? "생성 완료" : "생성 시작"}
                   </button>
+                  <Link
+                    href={`/admin/preview/${scenario.id}`}
+                    className="px-3 py-2 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    미리보기
+                  </Link>
                   <Link
                     href={`/admin/backgrounds/${scenario.id}`}
                     className="px-3 py-2 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
