@@ -70,6 +70,7 @@ export default function AdminPreviewDetailPage() {
     | { type: "cover-front" }
     | { type: "cover-back" }
     | { type: "blank" }
+    | { type: "letter" }
     | { type: "page"; pageNumber: number };
 
   const spreads: Array<[Leaf, Leaf]> = useMemo(() => {
@@ -78,7 +79,7 @@ export default function AdminPreviewDetailPage() {
     list.push([{ type: "cover-front" }, { type: "cover-front" }]);
     const pageNums = scenario.pages.map((p) => p.pageNumber);
     if (pageNums.length > 0) {
-      list.push([{ type: "blank" }, { type: "page", pageNumber: pageNums[0] }]);
+      list.push([{ type: "letter" }, { type: "page", pageNumber: pageNums[0] }]);
       for (let i = 1; i < pageNums.length; i += 2) {
         const left: Leaf = { type: "page", pageNumber: pageNums[i] };
         const right: Leaf =
@@ -258,21 +259,51 @@ export default function AdminPreviewDetailPage() {
               className="w-full h-full object-cover"
             />
           ) : null}
-          <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/10 to-transparent" />
+          <div className="absolute inset-0 bg-black/25" />
           <div
-            className="absolute inset-x-0 bottom-0 px-6 pb-7 pt-14 text-white"
+            className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 text-white"
             style={{ fontFamily: "'Jua', sans-serif" }}
           >
-            <div className="text-sm/6 opacity-90 mb-1">
-              {childName}(이)의 특별한 이야기
+            <div
+              className="text-xl sm:text-2xl opacity-95 mb-3"
+              style={{ textShadow: "0 2px 6px rgba(0,0,0,0.55)" }}
+            >
+              {replaceName("{childName}(이)의 특별한 이야기")}
             </div>
             <div
-              className="text-3xl sm:text-4xl leading-tight drop-shadow"
-              style={{ textShadow: "0 2px 8px rgba(0,0,0,0.5)" }}
+              className="text-5xl sm:text-6xl leading-tight drop-shadow"
+              style={{ textShadow: "0 2px 8px rgba(0,0,0,0.55)" }}
             >
               {scenario!.title}
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderLetter() {
+    return (
+      <div className="absolute inset-0 bg-cream flex flex-col px-8 py-10">
+        <div
+          className="text-gray-700 text-base mb-5"
+          style={{ fontFamily: "'Jua', sans-serif" }}
+        >
+          {replaceName("사랑하는 {childName}(이)에게")}
+        </div>
+        <div className="flex-1 flex flex-col justify-between">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div
+              key={i}
+              className="w-full border-b border-dashed border-gray-300"
+            />
+          ))}
+        </div>
+        <div
+          className="mt-5 text-right text-sm text-gray-500"
+          style={{ fontFamily: "'Jua', sans-serif" }}
+        >
+          _______년 ___월 ___일
         </div>
       </div>
     );
@@ -315,6 +346,7 @@ export default function AdminPreviewDetailPage() {
     else if (leaf.type === "cover-back") content = renderCoverBack();
     else if (leaf.type === "blank")
       content = <div className="absolute inset-0 bg-cream" />;
+    else if (leaf.type === "letter") content = renderLetter();
     else if (leaf.type === "page") content = renderPageLeaf(leaf.pageNumber);
 
     return (
