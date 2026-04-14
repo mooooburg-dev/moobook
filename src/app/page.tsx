@@ -290,31 +290,9 @@ export default function Home() {
             미리보기는 무료! 마음에 드시면 결제해주세요 💛
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-2xl mx-auto">
-            {/* 디지털 PDF */}
-            <div className="bg-white rounded-3xl shadow-md p-8 border-2 border-accent-blue/20 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              <div className="text-4xl mb-3">💾</div>
-              <h3
-                className="text-lg text-text"
-                style={{ fontFamily: 'var(--font-heading)' }}
-              >
-                디지털 PDF
-              </h3>
-              <p className="text-3xl font-extrabold mt-3 text-text">
-                9,900
-                <span className="text-sm font-normal text-text-light">원</span>
-              </p>
-              <p className="text-sm text-text-light mt-2">
-                고해상도 PDF 즉시 다운로드
-              </p>
-            </div>
-
+          <div className="max-w-md mx-auto">
             {/* 소프트커버 책 */}
             <div className="bg-white rounded-3xl shadow-lg p-8 border-2 border-primary relative overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              {/* 리본 뱃지 */}
-              <div className="ribbon-badge">
-                <span>인기</span>
-              </div>
               <div className="text-4xl mb-3">📚</div>
               <h3
                 className="text-lg text-text"
@@ -327,7 +305,7 @@ export default function Home() {
                 <span className="text-sm font-normal text-text-light">원</span>
               </p>
               <p className="text-sm text-text-light mt-2">
-                실물 동화책 + PDF (무료 배송)
+                실물 동화책 (무료 배송)
               </p>
             </div>
           </div>

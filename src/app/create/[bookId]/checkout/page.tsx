@@ -20,7 +20,7 @@ export default function CheckoutPage() {
       // 1. 서버에서 주문 생성
       // 2. 토스페이먼츠 결제 위젯 호출
       // 3. 결제 완료 콜백에서 /api/payment/confirm 호출
-      // 4. 성공 시 PDF 다운로드 페이지로 이동
+      // 4. 성공 시 주문 완료 페이지로 이동
 
       console.log(`결제 시작: bookId=${params.bookId}, tier=${selectedTier}`);
       alert("결제 기능은 토스페이먼츠 연동 후 활성화됩니다.");

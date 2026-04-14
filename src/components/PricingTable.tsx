@@ -7,16 +7,6 @@ interface PricingTableProps {
 
 const tiers = [
   {
-    id: "digital" as OrderTier,
-    name: "디지털 PDF",
-    emoji: "💾",
-    price: 9900,
-    description: "고해상도 PDF 다운로드",
-    features: ["12페이지 풀 컬러", "고해상도 PDF", "즉시 다운로드", "무제한 출력 가능"],
-    borderColor: "border-accent-blue/30",
-    checkColor: "text-accent-blue",
-  },
-  {
     id: "softcover" as OrderTier,
     name: "소프트커버 책",
     emoji: "📚",
@@ -24,7 +14,6 @@ const tiers = [
     description: "실물 동화책 배송",
     features: [
       "12페이지 풀 컬러",
-      "고해상도 PDF 포함",
       "소프트커버 실물 책",
       "무료 배송 (3~5일)",
     ],
@@ -36,7 +25,7 @@ const tiers = [
 
 export default function PricingTable({ onSelect }: PricingTableProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+    <div className="max-w-md mx-auto">
       {tiers.map((tier) => (
         <div
           key={tier.id}

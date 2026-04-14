@@ -47,7 +47,7 @@ export default function OrdersPage() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-bold text-gray-900">
-                  {order.tier === "digital" ? "디지털 PDF" : "소프트커버 책"}
+                  소프트커버 책
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
                   {new Date(order.created_at).toLocaleDateString("ko-KR")}

@@ -23,7 +23,7 @@ export type PaymentStatus = "pending" | "paid" | "refunded";
 
 export type ShippingStatus = "printing" | "shipped" | "delivered";
 
-export type OrderTier = "digital" | "softcover";
+export type OrderTier = "softcover";
 
 export interface Book {
   id: string;
