@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { getScenariosByCategory } from "@/lib/scenarios";
 import type { ScenarioCategory, ThemeId } from "@/types";
 
@@ -84,6 +85,16 @@ export default function ThemeSelector({
   onSelect,
 }: ThemeSelectorProps) {
   const categories = getScenariosByCategory();
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch("/api/scenarios/thumbnails")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.thumbnails) setThumbnails(data.thumbnails);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="space-y-8">
@@ -100,6 +111,7 @@ export default function ThemeSelector({
             {scenarios.map((scenario) => {
               const config = themeConfig[scenario.id];
               const isSelected = selectedTheme === scenario.id;
+              const thumbnail = thumbnails[scenario.id];
 
               return (
                 <div
@@ -111,8 +123,19 @@ export default function ThemeSelector({
                   }`}
                   onClick={() => onSelect(scenario.id)}
                 >
-                  <div className={`w-20 h-20 mx-auto rounded-full ${config.bgColor} flex items-center justify-center text-5xl mb-3 shadow-inner`}>
-                    {config.emoji}
+                  <div
+                    className={`w-20 h-20 mx-auto rounded-full ${config.bgColor} flex items-center justify-center text-5xl mb-3 shadow-inner overflow-hidden`}
+                  >
+                    {thumbnail ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={thumbnail}
+                        alt={scenario.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      config.emoji
+                    )}
                   </div>
                   <h3
                     className="text-lg text-text"
