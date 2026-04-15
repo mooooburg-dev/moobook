@@ -43,30 +43,52 @@ export async function GET(request: NextRequest) {
   // 전체 시나리오 현황 조회
   const { data, error } = await supabase
     .from("moobook_scenario_backgrounds")
-    .select("scenario_id, page_number, status, image_url")
+    .select(
+      "scenario_id, page_number, status, character_status, image_url, character_image_url"
+    )
     .order("page_number", { ascending: true });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 시나리오별 통계 집계
+  type PhaseStats = {
+    total: number;
+    completed: number;
+    approved: number;
+    generating: number;
+  };
+
   const stats: Record<
     string,
-    { total: number; completed: number; approved: number; generating: number }
+    PhaseStats & { character: PhaseStats }
   > = {};
   const thumbnails: Record<string, string[]> = {};
 
   for (const themeId of Object.keys(scenarios) as ThemeId[]) {
-    stats[themeId] = { total: scenarios[themeId].pageCount, completed: 0, approved: 0, generating: 0 };
+    const total = scenarios[themeId].pageCount;
+    stats[themeId] = {
+      total,
+      completed: 0,
+      approved: 0,
+      generating: 0,
+      character: { total, completed: 0, approved: 0, generating: 0 },
+    };
     thumbnails[themeId] = [];
   }
 
   for (const row of data ?? []) {
-    if (!stats[row.scenario_id]) continue;
-    if (row.status === "completed") stats[row.scenario_id].completed++;
-    if (row.status === "approved") stats[row.scenario_id].approved++;
-    if (row.status === "generating") stats[row.scenario_id].generating++;
+    const s = stats[row.scenario_id];
+    if (!s) continue;
+
+    if (row.status === "completed") s.completed++;
+    if (row.status === "approved") s.approved++;
+    if (row.status === "generating") s.generating++;
+
+    if (row.character_status === "completed") s.character.completed++;
+    if (row.character_status === "approved") s.character.approved++;
+    if (row.character_status === "generating") s.character.generating++;
+
     if (
       (row.status === "completed" || row.status === "approved") &&
       row.image_url
