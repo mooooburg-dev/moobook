@@ -153,6 +153,21 @@ export default function AdminScenarioDetailPage() {
           <span className="text-gray-400 text-sm block mb-1">교육 메시지</span>
           <p className="text-gray-700">{scenario.educationMessage}</p>
         </div>
+
+        <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-2">
+          <Link
+            href={`/admin/backgrounds/${scenario.id}`}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+          >
+            배경·캐릭터 생성
+          </Link>
+          <Link
+            href={`/admin/preview/${scenario.id}`}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            동화책 미리보기
+          </Link>
+        </div>
       </div>
 
       {/* 페이지 목록 */}

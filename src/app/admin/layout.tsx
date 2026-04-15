@@ -4,12 +4,21 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const menuItems = [
-  { href: '/admin/scenarios', label: '시나리오', ready: true },
-  { href: '/admin/backgrounds', label: '일러스트 배경', ready: true },
-  { href: '/admin/preview', label: '미리보기', ready: true },
-  { href: '/admin/orders', label: '주문', ready: false },
-  { href: '/admin/books', label: '책', ready: false },
+type MenuItem = { href: string; label: string; ready: boolean };
+type MenuSection = { title: string; items: MenuItem[] };
+
+const menuSections: MenuSection[] = [
+  {
+    title: '콘텐츠',
+    items: [{ href: '/admin/scenarios', label: '시나리오', ready: true }],
+  },
+  {
+    title: '운영',
+    items: [
+      { href: '/admin/orders', label: '주문', ready: false },
+      { href: '/admin/books', label: '책', ready: false },
+    ],
+  },
 ];
 
 function AdminLogin({ onLogin }: { onLogin: () => void }) {
@@ -121,31 +130,38 @@ export default function AdminLayout({
           </svg>
           사이트로 돌아가기
         </Link>
-        <nav className="flex flex-col gap-1">
-          {menuItems.map((item) => {
-            const isActive = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.ready ? item.href : '#'}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-gray-900 text-white'
-                    : item.ready
-                      ? 'text-gray-700 hover:bg-gray-100'
-                      : 'text-gray-400 cursor-not-allowed'
-                }`}
-                onClick={(e) => !item.ready && e.preventDefault()}
-              >
-                {item.label}
-                {!item.ready && (
-                  <span className="ml-2 text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                    준비 중
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+        <nav className="flex flex-col gap-6">
+          {menuSections.map((section) => (
+            <div key={section.title} className="flex flex-col gap-1">
+              <div className="px-3 mb-1 text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+                {section.title}
+              </div>
+              {section.items.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.ready ? item.href : '#'}
+                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-gray-900 text-white'
+                        : item.ready
+                          ? 'text-gray-700 hover:bg-gray-100'
+                          : 'text-gray-400 cursor-not-allowed'
+                    }`}
+                    onClick={(e) => !item.ready && e.preventDefault()}
+                  >
+                    {item.label}
+                    {!item.ready && (
+                      <span className="ml-2 text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                        준비 중
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </aside>
 
