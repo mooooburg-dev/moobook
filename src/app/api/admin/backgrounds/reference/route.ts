@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scenarios } from "@/lib/scenarios";
+import {
+  characterImageColumn,
+  characterStatusColumn,
+  isValidGender,
+  referenceImageColumn,
+} from "@/lib/utils/gender-columns";
 import type { ThemeId } from "@/types";
 
 async function verifyAdmin(): Promise<boolean> {
@@ -25,19 +31,28 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { scenarioId } = await request.json();
+    const { scenarioId, gender } = await request.json();
     if (!scenarioId || !isValidScenarioId(scenarioId)) {
       return NextResponse.json(
         { error: "유효하지 않은 시나리오 ID" },
         { status: 400 }
       );
     }
+    if (!isValidGender(gender)) {
+      return NextResponse.json(
+        { error: "유효하지 않은 gender" },
+        { status: 400 }
+      );
+    }
 
     const supabase = createAdminClient();
+    const imageCol = characterImageColumn(gender);
+    const statusCol = characterStatusColumn(gender);
+    const refCol = referenceImageColumn(gender);
 
     const { data: row, error: fetchErr } = await supabase
       .from("moobook_scenario_backgrounds")
-      .select("character_image_url, character_status")
+      .select(`${imageCol}, ${statusCol}`)
       .eq("scenario_id", scenarioId)
       .eq("page_number", 1)
       .maybeSingle();
@@ -45,16 +60,17 @@ export async function POST(request: NextRequest) {
     if (fetchErr) {
       return NextResponse.json({ error: fetchErr.message }, { status: 500 });
     }
-    if (!row?.character_image_url) {
+    const typed = row as Record<string, string | null> | null;
+    const charUrl = typed?.[imageCol] ?? null;
+    const charStatus = typed?.[statusCol] ?? null;
+
+    if (!charUrl) {
       return NextResponse.json(
         { error: "1페이지 캐릭터 이미지가 아직 없어요." },
         { status: 400 }
       );
     }
-    if (
-      row.character_status !== "completed" &&
-      row.character_status !== "approved"
-    ) {
+    if (charStatus !== "completed" && charStatus !== "approved") {
       return NextResponse.json(
         { error: "1페이지 캐릭터가 완료 상태여야 해요." },
         { status: 400 }
@@ -64,7 +80,7 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase
       .from("moobook_scenario_backgrounds")
       .update({
-        reference_image_url: row.character_image_url,
+        [refCol]: charUrl,
         updated_at: new Date().toISOString(),
       })
       .eq("scenario_id", scenarioId)
@@ -76,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      reference_image_url: row.character_image_url,
+      reference_image_url: charUrl,
     });
   } catch {
     return NextResponse.json({ error: "잘못된 요청" }, { status: 400 });
@@ -93,18 +109,26 @@ export async function DELETE(request: NextRequest) {
   }
 
   const scenarioId = request.nextUrl.searchParams.get("scenarioId");
+  const gender = request.nextUrl.searchParams.get("gender");
   if (!scenarioId || !isValidScenarioId(scenarioId)) {
     return NextResponse.json(
       { error: "유효하지 않은 시나리오 ID" },
       { status: 400 }
     );
   }
+  if (!isValidGender(gender)) {
+    return NextResponse.json(
+      { error: "유효하지 않은 gender" },
+      { status: 400 }
+    );
+  }
 
   const supabase = createAdminClient();
+  const refCol = referenceImageColumn(gender);
   const { error } = await supabase
     .from("moobook_scenario_backgrounds")
     .update({
-      reference_image_url: null,
+      [refCol]: null,
       updated_at: new Date().toISOString(),
     })
     .eq("scenario_id", scenarioId)

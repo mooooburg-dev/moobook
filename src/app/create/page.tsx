@@ -6,13 +6,14 @@ import PhotoUploader from "@/components/PhotoUploader";
 import ThemeSelector from "@/components/ThemeSelector";
 import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
-import type { ThemeId } from "@/types";
+import type { ChildGender, ThemeId } from "@/types";
 
 export default function CreatePage() {
   const router = useRouter();
   const [photo, setPhoto] = useState<File | null>(null);
   const [theme, setTheme] = useState<ThemeId | null>(null);
   const [childName, setChildName] = useState("");
+  const [childGender, setChildGender] = useState<ChildGender>("boy");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +49,7 @@ export default function CreatePage() {
           status: "pending",
           theme,
           child_name: childName.trim(),
+          child_gender: childGender,
           photo_url: photoUrl,
         })
         .select("id")
@@ -117,10 +119,51 @@ export default function CreatePage() {
         />
       </section>
 
-      {/* Step 3: 테마 선택 */}
+      {/* Step 3: 아이 성별 */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-8 h-8 rounded-full bg-accent-blue text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>3</span>
+          <span className="w-8 h-8 rounded-full bg-accent-pink text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>3</span>
+          <h2
+            className="text-lg text-text"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            아이 성별
+          </h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
+          {([
+            { id: "boy" as const, emoji: "👦", label: "남자아이" },
+            { id: "girl" as const, emoji: "👧", label: "여자아이" },
+          ]).map((opt) => {
+            const selected = childGender === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setChildGender(opt.id)}
+                className={`flex flex-col items-center gap-2 py-5 rounded-2xl border-2 transition-all bg-white ${
+                  selected
+                    ? "border-primary ring-2 ring-primary/30 shadow-md"
+                    : "border-primary/20 hover:border-primary/50"
+                }`}
+              >
+                <span className="text-4xl">{opt.emoji}</span>
+                <span
+                  className="text-sm text-text"
+                  style={{ fontFamily: "var(--font-body)" }}
+                >
+                  {opt.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Step 4: 테마 선택 */}
+      <section className="mb-10">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-8 h-8 rounded-full bg-accent-blue text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>4</span>
           <h2
             className="text-lg text-text"
             style={{ fontFamily: "var(--font-heading)" }}

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { scenarios } from "@/lib/scenarios";
 import { replaceChildName } from "@/lib/utils/korean-name";
-import type { ScenarioBackground, ThemeId } from "@/types";
+import type { ChildGender, ScenarioBackground, ThemeId } from "@/types";
 
 const NAME_OPTIONS = ["지환", "서윤", "하윤", "도윤", "시우", "지안", "수아"];
 
@@ -44,14 +44,19 @@ export default function AdminPreviewDetailPage() {
   const [imageSource, setImageSource] = useState<"character" | "background">(
     "character"
   );
+  const [gender, setGender] = useState<ChildGender>("boy");
 
   function pickImage(bg: ScenarioBackground | undefined): string | null {
     if (!bg) return null;
     if (imageSource === "character") {
-      const charReady =
-        bg.character_status === "completed" ||
-        bg.character_status === "approved";
-      if (charReady && bg.character_image_url) return bg.character_image_url;
+      const status =
+        gender === "boy" ? bg.character_status_boy : bg.character_status_girl;
+      const url =
+        gender === "boy"
+          ? bg.character_image_url_boy
+          : bg.character_image_url_girl;
+      const charReady = status === "completed" || status === "approved";
+      if (charReady && url) return url;
     }
     return bg.image_url ?? null;
   }
@@ -113,13 +118,17 @@ export default function AdminPreviewDetailPage() {
     const bg = bgMap.get(first.pageNumber);
     if (!bg) return null;
     if (imageSource === "character") {
-      const charReady =
-        bg.character_status === "completed" ||
-        bg.character_status === "approved";
-      if (charReady && bg.character_image_url) return bg.character_image_url;
+      const status =
+        gender === "boy" ? bg.character_status_boy : bg.character_status_girl;
+      const url =
+        gender === "boy"
+          ? bg.character_image_url_boy
+          : bg.character_image_url_girl;
+      const charReady = status === "completed" || status === "approved";
+      if (charReady && url) return url;
     }
     return bg.image_url ?? null;
-  }, [scenario, bgMap, imageSource]);
+  }, [scenario, bgMap, imageSource, gender]);
 
   useEffect(() => {
     if (viewMode !== "spread") return;
@@ -567,6 +576,32 @@ export default function AdminPreviewDetailPage() {
               }`}
             >
               배경만
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">성별</label>
+          <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
+            <button
+              onClick={() => setGender("boy")}
+              className={`px-3 py-1.5 text-sm ${
+                gender === "boy"
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              👦 남아
+            </button>
+            <button
+              onClick={() => setGender("girl")}
+              className={`px-3 py-1.5 text-sm ${
+                gender === "girl"
+                  ? "bg-pink-500 text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              👧 여아
             </button>
           </div>
         </div>

@@ -25,12 +25,15 @@ export type ShippingStatus = "printing" | "shipped" | "delivered";
 
 export type OrderTier = "softcover";
 
+export type ChildGender = "boy" | "girl";
+
 export interface Book {
   id: string;
   status: BookStatus;
   theme: ThemeId;
   child_name: string | null;
   child_age: number | null;
+  child_gender: ChildGender;
   photo_url: string;
   preview_pages: string[] | null;
   all_pages: string[] | null;
@@ -108,6 +111,12 @@ export interface ScenarioBackground {
   character_status: CharacterStatus;
   character_prompt: string | null;
   reference_image_url: string | null;
+  character_image_url_boy: string | null;
+  character_image_url_girl: string | null;
+  character_status_boy: CharacterStatus;
+  character_status_girl: CharacterStatus;
+  reference_image_url_boy: string | null;
+  reference_image_url_girl: string | null;
   created_at: string;
   updated_at: string;
 }

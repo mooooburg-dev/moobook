@@ -1,7 +1,9 @@
-import type { ScenarioPage, ThemeId } from "@/types";
+import type { ChildGender, ScenarioPage, ThemeId } from "@/types";
 
-const CHARACTER_BASE =
-  "Add a cute young Korean child (about 5 years old) with short brown hair into this scene. The child is wearing a light blue fluffy hooded jacket and brown pants.";
+const CHARACTER_APPEARANCE: Record<ChildGender, string> = {
+  boy: "a cute young Korean boy (about 5 years old) with short brown hair, wearing a light blue fluffy hooded jacket and brown pants",
+  girl: "a cute young Korean girl (about 5 years old) with shoulder-length brown hair with a small pink hairpin, wearing a soft pink coat and a light floral skirt",
+};
 
 const KEEP_BACKGROUND =
   "The child should blend naturally into the existing scene's art style and lighting. Keep the background exactly as it is, only add the child character.";
@@ -61,10 +63,12 @@ function getActionDescription(scenarioId: ThemeId, page: ScenarioPage): string {
  */
 export function buildFirstPagePrompt(
   scenarioId: ThemeId,
-  page: ScenarioPage
+  page: ScenarioPage,
+  gender: ChildGender
 ): string {
+  const appearance = CHARACTER_APPEARANCE[gender];
   const action = getActionDescription(scenarioId, page);
-  return `${CHARACTER_BASE} ${action} ${KEEP_BACKGROUND}`;
+  return `Add ${appearance} into this scene. ${action} ${KEEP_BACKGROUND}`;
 }
 
 /**
@@ -74,11 +78,13 @@ export function buildFirstPagePrompt(
  */
 export function buildReferenceBasedPrompt(
   scenarioId: ThemeId,
-  page: ScenarioPage
+  page: ScenarioPage,
+  gender: ChildGender
 ): string {
+  const appearance = CHARACTER_APPEARANCE[gender];
   const action = getActionDescription(scenarioId, page);
   return [
-    "This exact same child character from the reference - same face, same hair, same clothing, same art style.",
+    `This exact same child character from the reference (${appearance}) - same face, same hair, same clothing, same art style.`,
     `New scene: ${page.illustrationPrompt}.`,
     action,
     "Keep the child's appearance perfectly consistent with the reference.",

@@ -188,6 +188,11 @@ async function generateSinglePage(
 // TODO: 사전 생성된 배경을 moobook_scenario_backgrounds에서 조회하고,
 // 해당 배경 위에 캐릭터를 합성하는 방식으로 전환 예정
 // 현재는 기존 실시간 생성 로직 유지
+//
+// TODO: 주문 시 book.child_gender 값(boy | girl)에 따라
+// character_image_url_boy / character_image_url_girl 중 해당 성별의
+// 사전 생성 캐릭터 이미지를 사용하고,
+// face swap 단계에서 실제 아이 얼굴을 교체한다.
 
 /**
  * preview용 3페이지 생성

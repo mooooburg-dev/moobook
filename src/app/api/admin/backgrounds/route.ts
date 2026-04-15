@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scenarios } from "@/lib/scenarios";
+import {
+  characterStatusColumn,
+  isValidGender,
+} from "@/lib/utils/gender-columns";
 import type { ThemeId } from "@/types";
 
 async function verifyAdmin(): Promise<boolean> {
@@ -89,7 +93,8 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const { scenarioId, pageNumber, action, target } = await request.json();
+    const { scenarioId, pageNumber, action, target, gender } =
+      await request.json();
 
     if (
       !scenarioId ||
@@ -103,6 +108,12 @@ export async function PATCH(request: NextRequest) {
     if (target && !["background", "character"].includes(target)) {
       return NextResponse.json({ error: "잘못된 target" }, { status: 400 });
     }
+    if (useCharacter && !isValidGender(gender)) {
+      return NextResponse.json(
+        { error: "character target은 gender가 필요합니다" },
+        { status: 400 }
+      );
+    }
 
     const supabase = createAdminClient();
     const newStatus =
@@ -113,7 +124,10 @@ export async function PATCH(request: NextRequest) {
           : "pending";
 
     const updatePayload = useCharacter
-      ? { character_status: newStatus, updated_at: new Date().toISOString() }
+      ? {
+          [characterStatusColumn(gender)]: newStatus,
+          updated_at: new Date().toISOString(),
+        }
       : { status: newStatus, updated_at: new Date().toISOString() };
 
     const { error } = await supabase

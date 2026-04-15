@@ -7,15 +7,25 @@ import {
   buildFirstPagePrompt,
   buildReferenceBasedPrompt,
 } from "@/lib/scenarios/character-prompts";
-import type { ThemeId } from "@/types";
+import {
+  characterImageColumn,
+  characterStatusColumn,
+  isValidGender,
+  referenceImageColumn,
+} from "@/lib/utils/gender-columns";
+import type { ChildGender, ThemeId } from "@/types";
 
 const MOCK_MODE =
   process.env.USE_MOCK_AI === "true" || !process.env.REPLICATE_API_TOKEN;
 
 const CHARACTER_MODEL = "black-forest-labs/flux-kontext-pro";
 
-const PLACEHOLDER_CHAR = (scenarioId: string, pageNumber: number) =>
-  `https://placehold.co/768x1024/ffe5d9/d2691e?text=${scenarioId}+char+p${pageNumber}`;
+const PLACEHOLDER_CHAR = (
+  scenarioId: string,
+  pageNumber: number,
+  gender: ChildGender
+) =>
+  `https://placehold.co/768x1024/ffe5d9/d2691e?text=${scenarioId}+${gender}+p${pageNumber}`;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -33,16 +43,15 @@ async function uploadToStorage(
   supabase: ReturnType<typeof createAdminClient>,
   imageUrl: string,
   scenarioId: string,
-  pageNumber: number
+  pageNumber: number,
+  gender: ChildGender
 ): Promise<string> {
   const res = await fetch(imageUrl);
   if (!res.ok) throw new Error(`이미지 다운로드 실패: ${res.status}`);
 
   const buffer = await res.arrayBuffer();
-  // 재생성마다 새로운 URL이 나오도록 타임스탬프를 경로에 포함.
-  // 브라우저/CDN 캐시로 이전 이미지가 그대로 보이는 문제 방지.
   const ts = Date.now();
-  const path = `${scenarioId}/char_page_${String(pageNumber).padStart(2, "0")}_${ts}.png`;
+  const path = `${scenarioId}/char_${gender}_page_${String(pageNumber).padStart(2, "0")}_${ts}.png`;
 
   const { error } = await supabase.storage
     .from("moobook_backgrounds")
@@ -71,14 +80,16 @@ async function runGeneration(
   inputImage: string,
   prompt: string,
   tag: string,
-  replicate: Replicate | null
+  replicate: Replicate | null,
+  gender: ChildGender
 ): Promise<string> {
   const supabase = createAdminClient();
+  const statusCol = characterStatusColumn(gender);
 
   await supabase
     .from("moobook_scenario_backgrounds")
     .update({
-      character_status: "generating",
+      [statusCol]: "generating",
       character_prompt: prompt,
       updated_at: new Date().toISOString(),
     })
@@ -87,7 +98,7 @@ async function runGeneration(
 
   if (MOCK_MODE || !replicate) {
     console.log(`${tag} [MOCK] placeholder 사용`);
-    return PLACEHOLDER_CHAR(scenarioId, row.page_number);
+    return PLACEHOLDER_CHAR(scenarioId, row.page_number, gender);
   }
 
   console.log(`${tag} Replicate 호출 시작`);
@@ -110,20 +121,21 @@ async function runGeneration(
   }
 
   console.log(`${tag} Replicate 완료, Storage 업로드 시작`);
-  return uploadToStorage(supabase, outputUrl, scenarioId, row.page_number);
+  return uploadToStorage(supabase, outputUrl, scenarioId, row.page_number, gender);
 }
 
 async function markFailed(
   scenarioId: ThemeId,
   pageNumber: number,
+  gender: ChildGender,
   msg: string
 ) {
   const supabase = createAdminClient();
-  console.error(`[CHAR] ${scenarioId} p${pageNumber} 실패: ${msg}`);
+  console.error(`[CHAR:${gender}] ${scenarioId} p${pageNumber} 실패: ${msg}`);
   await supabase
     .from("moobook_scenario_backgrounds")
     .update({
-      character_status: "pending",
+      [characterStatusColumn(gender)]: "pending",
       updated_at: new Date().toISOString(),
     })
     .eq("scenario_id", scenarioId)
@@ -132,21 +144,25 @@ async function markFailed(
 
 async function generateInBackground(
   scenarioId: ThemeId,
-  pageNumbers: number[] | null
+  pageNumbers: number[] | null,
+  gender: ChildGender
 ) {
   const supabase = createAdminClient();
   const scenario = scenarios[scenarioId];
+  const imageCol = characterImageColumn(gender);
+  const statusCol = characterStatusColumn(gender);
+  const refCol = referenceImageColumn(gender);
 
   const { data: rows, error } = await supabase
     .from("moobook_scenario_backgrounds")
     .select(
-      "page_number, status, image_url, character_status, character_image_url, reference_image_url"
+      `page_number, status, image_url, ${imageCol}, ${statusCol}`
     )
     .eq("scenario_id", scenarioId)
     .eq("status", "approved");
 
   if (error) {
-    console.error(`[CHAR] ${scenarioId} 조회 실패:`, error.message);
+    console.error(`[CHAR:${gender}] ${scenarioId} 조회 실패:`, error.message);
     return;
   }
 
@@ -154,26 +170,30 @@ async function generateInBackground(
     ? null
     : new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
 
-  const firstPageRow = (rows ?? []).find((r) => r.page_number === 1);
+  type Row = {
+    page_number: number;
+    status: string;
+    image_url: string | null;
+    [key: string]: unknown;
+  };
+  const typedRows = (rows ?? []) as unknown as Row[];
 
-  const isEligible = (r: (typeof rows)[number]) => {
+  const firstPageRow = typedRows.find((r) => r.page_number === 1);
+
+  const isEligible = (r: Row) => {
     if (!r.image_url) return false;
     if (pageNumbers && !pageNumbers.includes(r.page_number)) return false;
-    if (
-      r.character_status === "completed" ||
-      r.character_status === "approved"
-    ) {
-      return false;
-    }
+    const st = r[statusCol];
+    if (st === "completed" || st === "approved") return false;
     return true;
   };
 
-  // 1페이지: 배경 위에 캐릭터 추가 (기존 방식)
+  // 1페이지: 배경 위에 캐릭터 추가
   if (firstPageRow && isEligible(firstPageRow)) {
     const page = scenario.pages.find((p) => p.pageNumber === 1);
     if (page && firstPageRow.image_url) {
-      const tag = `[CHAR] ${scenarioId} p1 (first)`;
-      const prompt = buildFirstPagePrompt(scenarioId, page);
+      const tag = `[CHAR:${gender}] ${scenarioId} p1 (first)`;
+      const prompt = buildFirstPagePrompt(scenarioId, page, gender);
       try {
         const url = await runGeneration(
           scenarioId,
@@ -181,53 +201,60 @@ async function generateInBackground(
           firstPageRow.image_url,
           prompt,
           tag,
-          replicate
+          replicate,
+          gender
         );
         await supabase
           .from("moobook_scenario_backgrounds")
           .update({
-            character_image_url: url,
-            character_status: "completed",
+            [imageCol]: url,
+            [statusCol]: "completed",
             updated_at: new Date().toISOString(),
           })
           .eq("scenario_id", scenarioId)
           .eq("page_number", 1);
         console.log(`${tag} 완료`);
       } catch (err) {
-        await markFailed(scenarioId, 1, err instanceof Error ? err.message : String(err));
+        await markFailed(
+          scenarioId,
+          1,
+          gender,
+          err instanceof Error ? err.message : String(err)
+        );
       }
     }
   }
 
-  // 2~12페이지: 레퍼런스 필요
-  const restTargets = (rows ?? [])
+  // 2~12페이지: 성별별 레퍼런스 필요
+  const restTargets = typedRows
     .filter((r) => r.page_number !== 1 && isEligible(r))
     .sort((a, b) => a.page_number - b.page_number);
 
   if (restTargets.length === 0) {
-    console.log(`[CHAR] ${scenarioId}: 2p 이후 생성 대상 없음`);
+    console.log(`[CHAR:${gender}] ${scenarioId}: 2p 이후 생성 대상 없음`);
     return;
   }
 
-  // 레퍼런스 조회 (1페이지 행에만 저장됨)
   const { data: refRow } = await supabase
     .from("moobook_scenario_backgrounds")
-    .select("reference_image_url")
+    .select(refCol)
     .eq("scenario_id", scenarioId)
     .eq("page_number", 1)
     .maybeSingle();
 
-  const referenceUrl = refRow?.reference_image_url ?? null;
+  const referenceUrl = (refRow as Record<string, string | null> | null)?.[
+    refCol
+  ] ?? null;
 
   if (!referenceUrl) {
     console.warn(
-      `[CHAR] ${scenarioId}: 레퍼런스 미설정으로 2p 이후 생성 스킵`
+      `[CHAR:${gender}] ${scenarioId}: 레퍼런스 미설정으로 2p 이후 생성 스킵`
     );
     return;
   }
 
   console.log(
-    `[CHAR] ${scenarioId}: 2p 이후 ${restTargets.length}페이지 레퍼런스 기반 생성 시작`
+    `[CHAR:${gender}] ${scenarioId}: 2p 이후 ${restTargets.length}페이지 레퍼런스 기반 생성 시작`
   );
 
   for (let i = 0; i < restTargets.length; i++) {
@@ -235,8 +262,8 @@ async function generateInBackground(
     const page = scenario.pages.find((p) => p.pageNumber === row.page_number);
     if (!page) continue;
 
-    const tag = `[CHAR] ${scenarioId} p${row.page_number} (ref)`;
-    const prompt = buildReferenceBasedPrompt(scenarioId, page);
+    const tag = `[CHAR:${gender}] ${scenarioId} p${row.page_number} (ref)`;
+    const prompt = buildReferenceBasedPrompt(scenarioId, page, gender);
 
     try {
       const url = await runGeneration(
@@ -245,13 +272,14 @@ async function generateInBackground(
         referenceUrl,
         prompt,
         tag,
-        replicate
+        replicate,
+        gender
       );
       await supabase
         .from("moobook_scenario_backgrounds")
         .update({
-          character_image_url: url,
-          character_status: "completed",
+          [imageCol]: url,
+          [statusCol]: "completed",
           updated_at: new Date().toISOString(),
         })
         .eq("scenario_id", scenarioId)
@@ -265,21 +293,18 @@ async function generateInBackground(
       await markFailed(
         scenarioId,
         row.page_number,
+        gender,
         err instanceof Error ? err.message : String(err)
       );
     }
   }
 
-  console.log(`[CHAR] ${scenarioId}: 배치 생성 완료`);
+  console.log(`[CHAR:${gender}] ${scenarioId}: 배치 생성 완료`);
 }
 
 /**
  * POST /api/admin/generate-characters
- * body: { scenarioId: string, pageNumbers?: number[] }
- *
- * 동작:
- * - 1페이지: 배경 위에 캐릭터 추가.
- * - 2페이지 이후: 1페이지 reference_image_url이 설정되어 있어야 하며, 레퍼런스를 input_image로 사용.
+ * body: { scenarioId: string, pageNumbers?: number[], gender: 'boy' | 'girl' }
  */
 export async function POST(request: NextRequest) {
   if (!(await verifyAdmin())) {
@@ -287,11 +312,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { scenarioId, pageNumbers } = await request.json();
+    const { scenarioId, pageNumbers, gender } = await request.json();
 
     if (!scenarioId || !isValidScenarioId(scenarioId)) {
       return NextResponse.json(
         { error: "유효하지 않은 시나리오 ID" },
+        { status: 400 }
+      );
+    }
+
+    if (!isValidGender(gender)) {
+      return NextResponse.json(
+        { error: "유효하지 않은 gender (boy|girl)" },
         { status: 400 }
       );
     }
@@ -302,17 +334,20 @@ export async function POST(request: NextRequest) {
         ? pageNumbers
         : null;
 
-    // 2페이지 이후만 요청인데 레퍼런스 미설정이면 차단
     if (pages && pages.every((n) => n !== 1)) {
       const supabase = createAdminClient();
+      const refCol = referenceImageColumn(gender);
       const { data: refRow } = await supabase
         .from("moobook_scenario_backgrounds")
-        .select("reference_image_url")
+        .select(refCol)
         .eq("scenario_id", scenarioId)
         .eq("page_number", 1)
         .maybeSingle();
 
-      if (!refRow?.reference_image_url) {
+      const refUrl =
+        (refRow as Record<string, string | null> | null)?.[refCol] ?? null;
+
+      if (!refUrl) {
         return NextResponse.json(
           {
             error:
@@ -323,13 +358,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    generateInBackground(scenarioId, pages).catch((err) => {
-      console.error(`[CHAR] ${scenarioId} 배치 실패:`, err);
+    generateInBackground(scenarioId, pages, gender).catch((err) => {
+      console.error(`[CHAR:${gender}] ${scenarioId} 배치 실패:`, err);
     });
 
     return NextResponse.json({
       success: true,
-      message: `${scenarioId} 캐릭터 합성이 시작되었습니다`,
+      message: `${scenarioId} (${gender}) 캐릭터 합성이 시작되었습니다`,
     });
   } catch {
     return NextResponse.json({ error: "잘못된 요청입니다" }, { status: 400 });
