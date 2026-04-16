@@ -3,7 +3,29 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { scenarios } from "@/lib/scenarios";
-import type { ScenarioBackground, ThemeId } from "@/types";
+import type { ChildGender, ScenarioBackground, ThemeId } from "@/types";
+
+function charImage(bg: ScenarioBackground | undefined, gender: ChildGender) {
+  if (!bg) return null;
+  return gender === "boy"
+    ? bg.character_image_url_boy
+    : bg.character_image_url_girl;
+}
+function charStatus(
+  bg: ScenarioBackground | undefined,
+  gender: ChildGender
+): string {
+  if (!bg) return "pending";
+  const st =
+    gender === "boy" ? bg.character_status_boy : bg.character_status_girl;
+  return st ?? "pending";
+}
+function refUrl(bg: ScenarioBackground | undefined, gender: ChildGender) {
+  if (!bg) return null;
+  return gender === "boy"
+    ? bg.reference_image_url_boy
+    : bg.reference_image_url_girl;
+}
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   pending: { label: "대기", color: "bg-gray-100 text-gray-600" },
@@ -26,6 +48,7 @@ export default function AdminBackgroundDetailPage() {
   const [regenAllLoading, setRegenAllLoading] = useState(false);
   const [tab, setTab] = useState<"background" | "character">("background");
   const [charAllLoading, setCharAllLoading] = useState(false);
+  const [gender, setGender] = useState<ChildGender>("boy");
 
   const fetchBackgrounds = useCallback(async () => {
     try {
@@ -41,7 +64,9 @@ export default function AdminBackgroundDetailPage() {
   }, [scenarioId]);
 
   const hasGenerating = backgrounds.some(
-    (b) => b.status === "generating" || b.character_status === "generating"
+    (b) =>
+      b.status === "generating" ||
+      charStatus(b, gender) === "generating"
   );
 
   const totalPages = scenario?.pageCount ?? 0;
@@ -56,27 +81,27 @@ export default function AdminBackgroundDetailPage() {
   };
 
   const firstPageBg = backgrounds.find((b) => b.page_number === 1);
-  const referenceUrl = firstPageBg?.reference_image_url ?? null;
+  const referenceUrl = refUrl(firstPageBg, gender);
+  const firstPageCharStatus = charStatus(firstPageBg, gender);
   const firstPageCharReady =
-    firstPageBg?.character_image_url &&
-    (firstPageBg.character_status === "completed" ||
-      firstPageBg.character_status === "approved");
+    !!charImage(firstPageBg, gender) &&
+    (firstPageCharStatus === "completed" ||
+      firstPageCharStatus === "approved");
 
   const approvedBgPages = backgrounds.filter((b) => b.status === "approved");
   const charDenom = approvedBgPages.length;
   const charStats = {
-    completed: approvedBgPages.filter(
-      (b) =>
-        b.character_status === "completed" ||
-        b.character_status === "approved"
-    ).length,
+    completed: approvedBgPages.filter((b) => {
+      const st = charStatus(b, gender);
+      return st === "completed" || st === "approved";
+    }).length,
     approved: approvedBgPages.filter(
-      (b) => b.character_status === "approved"
+      (b) => charStatus(b, gender) === "approved"
     ).length,
     generating: approvedBgPages.filter(
-      (b) => b.character_status === "generating"
+      (b) => charStatus(b, gender) === "generating"
     ).length,
-    failed: approvedBgPages.filter((b) => b.character_status === "rejected")
+    failed: approvedBgPages.filter((b) => charStatus(b, gender) === "rejected")
       .length,
   };
 
@@ -110,7 +135,13 @@ export default function AdminBackgroundDetailPage() {
       const res = await fetch("/api/admin/backgrounds", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId, pageNumber, action, target }),
+        body: JSON.stringify({
+          scenarioId,
+          pageNumber,
+          action,
+          target,
+          gender: target === "character" ? gender : undefined,
+        }),
       });
       if (res.ok) {
         await fetchBackgrounds();
@@ -132,7 +163,7 @@ export default function AdminBackgroundDetailPage() {
       const res = await fetch("/api/admin/generate-characters", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId, pageNumbers: [1] }),
+        body: JSON.stringify({ scenarioId, pageNumbers: [1], gender }),
       });
       if (!res.ok) {
         alert("1페이지 생성 요청 실패");
@@ -141,7 +172,18 @@ export default function AdminBackgroundDetailPage() {
       setBackgrounds((prev) =>
         prev.map((b) =>
           b.page_number === 1
-            ? { ...b, character_status: "generating", character_image_url: null }
+            ? {
+                ...b,
+                ...(gender === "boy"
+                  ? {
+                      character_status_boy: "generating",
+                      character_image_url_boy: null,
+                    }
+                  : {
+                      character_status_girl: "generating",
+                      character_image_url_girl: null,
+                    }),
+              }
             : b
         )
       );
@@ -158,13 +200,12 @@ export default function AdminBackgroundDetailPage() {
       return;
     }
     const targets = backgrounds
-      .filter(
-        (b) =>
-          b.page_number !== 1 &&
-          b.status === "approved" &&
-          b.character_status !== "completed" &&
-          b.character_status !== "approved"
-      )
+      .filter((b) => {
+        if (b.page_number === 1) return false;
+        if (b.status !== "approved") return false;
+        const st = charStatus(b, gender);
+        return st !== "completed" && st !== "approved";
+      })
       .map((b) => b.page_number);
 
     if (targets.length === 0) {
@@ -188,7 +229,7 @@ export default function AdminBackgroundDetailPage() {
       const res = await fetch("/api/admin/generate-characters", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId, pageNumbers: willRun }),
+        body: JSON.stringify({ scenarioId, pageNumbers: willRun, gender }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -198,7 +239,18 @@ export default function AdminBackgroundDetailPage() {
       setBackgrounds((prev) =>
         prev.map((b) =>
           willRun.includes(b.page_number)
-            ? { ...b, character_status: "generating", character_image_url: null }
+            ? {
+                ...b,
+                ...(gender === "boy"
+                  ? {
+                      character_status_boy: "generating",
+                      character_image_url_boy: null,
+                    }
+                  : {
+                      character_status_girl: "generating",
+                      character_image_url_girl: null,
+                    }),
+              }
             : b
         )
       );
@@ -213,7 +265,7 @@ export default function AdminBackgroundDetailPage() {
       const res = await fetch("/api/admin/backgrounds/reference", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId }),
+        body: JSON.stringify({ scenarioId, gender }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -233,7 +285,7 @@ export default function AdminBackgroundDetailPage() {
     setActionLoading(1);
     try {
       const res = await fetch(
-        `/api/admin/backgrounds/reference?scenarioId=${scenarioId}`,
+        `/api/admin/backgrounds/reference?scenarioId=${scenarioId}&gender=${gender}`,
         { method: "DELETE" }
       );
       if (!res.ok) {
@@ -263,27 +315,32 @@ export default function AdminBackgroundDetailPage() {
           pageNumber,
           action: "reset",
           target: "character",
+          gender,
         }),
       });
       const res = await fetch("/api/admin/generate-characters", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId, pageNumbers: [pageNumber] }),
+        body: JSON.stringify({ scenarioId, pageNumbers: [pageNumber], gender }),
       });
       if (!res.ok) {
         alert("재생성 요청 실패");
         return;
       }
-      // 낙관적 업데이트: 이 상태가 hasGenerating=true를 만들어 3초 폴링을 가동시킴.
-      // 여기서 fetchBackgrounds()를 호출하면 서버의 아직 비동기 반영 전 pending 상태로
-      // 덮어쓰여 폴링이 시작되지 않는 레이스가 발생하므로 호출하지 않는다.
       setBackgrounds((prev) =>
         prev.map((b) =>
           b.page_number === pageNumber
             ? {
                 ...b,
-                character_status: "generating",
-                character_image_url: null,
+                ...(gender === "boy"
+                  ? {
+                      character_status_boy: "generating",
+                      character_image_url_boy: null,
+                    }
+                  : {
+                      character_status_girl: "generating",
+                      character_image_url_girl: null,
+                    }),
               }
             : b
         )
@@ -388,7 +445,29 @@ export default function AdminBackgroundDetailPage() {
                   : "배경 전체 재생성"}
             </button>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <div className="inline-flex rounded-md border border-gray-300 overflow-hidden mr-1">
+                <button
+                  onClick={() => setGender("boy")}
+                  className={`px-3 py-1.5 text-sm ${
+                    gender === "boy"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  👦 남아
+                </button>
+                <button
+                  onClick={() => setGender("girl")}
+                  className={`px-3 py-1.5 text-sm ${
+                    gender === "girl"
+                      ? "bg-pink-500 text-white"
+                      : "bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  👧 여아
+                </button>
+              </div>
               <button
                 onClick={handleGenerateFirstPageCharacter}
                 disabled={
@@ -611,10 +690,11 @@ export default function AdminBackgroundDetailPage() {
 
             // character 탭
             const bgApproved = bg?.status === "approved";
-            const charStatus = bg?.character_status ?? "pending";
-            const charConfig = statusConfig[charStatus];
+            const charStatusVal = charStatus(bg, gender);
+            const charImageUrl = charImage(bg, gender);
+            const charConfig = statusConfig[charStatusVal];
             const hasChar =
-              bg?.character_image_url && charStatus !== "pending";
+              !!charImageUrl && charStatusVal !== "pending";
 
             return (
               <div
@@ -651,20 +731,18 @@ export default function AdminBackgroundDetailPage() {
                       hasChar ? "cursor-pointer" : ""
                     }`}
                     onClick={() =>
-                      hasChar &&
-                      bg?.character_image_url &&
-                      setModalImage(bg.character_image_url)
+                      hasChar && charImageUrl && setModalImage(charImageUrl)
                     }
                   >
-                    {hasChar && bg?.character_image_url ? (
+                    {hasChar && charImageUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
-                        key={bg.character_image_url}
-                        src={bg.character_image_url}
+                        key={charImageUrl}
+                        src={charImageUrl}
                         alt={`Character p${page.pageNumber}`}
                         className="absolute inset-0 w-full h-full object-cover"
                       />
-                    ) : charStatus === "generating" && bg?.image_url ? (
+                    ) : charStatusVal === "generating" && bg?.image_url ? (
                       <>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
@@ -684,7 +762,7 @@ export default function AdminBackgroundDetailPage() {
                       </>
                     ) : (
                       <div className="flex items-center justify-center h-full text-gray-300 text-xs">
-                        {charStatus === "generating" ? (
+                        {charStatusVal === "generating" ? (
                           <div className="flex flex-col items-center gap-1">
                             <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                             <span>생성 중</span>
@@ -732,13 +810,13 @@ export default function AdminBackgroundDetailPage() {
                   {page.pageNumber !== 1 &&
                     bgApproved &&
                     !referenceUrl &&
-                    charStatus !== "generating" && (
+                    charStatusVal !== "generating" && (
                       <p className="text-[11px] text-amber-600 mb-2">
                         레퍼런스가 설정되어야 이 페이지를 생성할 수 있어요.
                       </p>
                     )}
 
-                  {bgApproved && charStatus === "pending" && (
+                  {bgApproved && charStatusVal === "pending" && (
                     <button
                       onClick={() => handleRegenerateCharacter(page.pageNumber)}
                       disabled={
@@ -774,9 +852,10 @@ export default function AdminBackgroundDetailPage() {
                     </div>
                   )}
 
-                  {(charStatus === "completed" || charStatus === "rejected") && (
+                  {(charStatusVal === "completed" ||
+                    charStatusVal === "rejected") && (
                     <div className="flex gap-2">
-                      {charStatus === "completed" && (
+                      {charStatusVal === "completed" && (
                         <button
                           onClick={() =>
                             handleAction(
@@ -801,7 +880,7 @@ export default function AdminBackgroundDetailPage() {
                     </div>
                   )}
 
-                  {charStatus === "approved" && (
+                  {charStatusVal === "approved" && (
                     <button
                       onClick={() => handleRegenerateCharacter(page.pageNumber)}
                       disabled={isLoading || !bgApproved}
