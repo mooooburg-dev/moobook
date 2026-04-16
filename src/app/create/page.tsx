@@ -70,7 +70,7 @@ export default function CreatePage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 page-enter">
-      <div className="text-center mb-10">
+      <div className="text-center mb-8">
         <div className="text-4xl mb-3">🎨</div>
         <h1
           className="text-3xl text-text"
@@ -81,6 +81,23 @@ export default function CreatePage() {
         <p className="text-text-light mt-2">
           아이의 사진과 테마를 선택해주세요
         </p>
+      </div>
+
+      <div className="mb-10 flex items-center justify-center gap-3 bg-linear-to-r from-primary/10 via-secondary/10 to-accent-blue/10 border border-primary/20 rounded-2xl px-5 py-4">
+        <span className="text-2xl" aria-hidden>
+          ✨
+        </span>
+        <div className="text-left">
+          <p
+            className="text-sm text-text"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            회원가입 없이 바로 미리볼 수 있어요
+          </p>
+          <p className="text-xs text-text-light mt-0.5">
+            결제 전까지 부담 없이 시안을 확인해보세요
+          </p>
+        </div>
       </div>
 
       {/* Step 1: 사진 업로드 */}

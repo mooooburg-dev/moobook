@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { getScenariosByCategory } from "@/lib/scenarios";
-import type { ScenarioCategory, ThemeId } from "@/types";
+import type { Scenario, ScenarioCategory, ThemeId } from "@/types";
+import ScenarioPreviewModal from "./ScenarioPreviewModal";
 
 interface ThemeSelectorProps {
   selectedTheme: ThemeId | null;
@@ -86,6 +87,7 @@ export default function ThemeSelector({
 }: ThemeSelectorProps) {
   const categories = getScenariosByCategory();
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const [previewScenario, setPreviewScenario] = useState<Scenario | null>(null);
 
   useEffect(() => {
     fetch("/api/scenarios/thumbnails")
@@ -152,12 +154,33 @@ export default function ThemeSelector({
                       ✓ 선택됨
                     </div>
                   )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPreviewScenario(scenario);
+                    }}
+                    className="mt-3 text-xs text-text-light hover:text-primary underline underline-offset-2 transition-colors"
+                  >
+                    이야기 미리보기
+                  </button>
                 </div>
               );
             })}
           </div>
         </div>
       ))}
+      <ScenarioPreviewModal
+        scenario={previewScenario}
+        thumbnail={previewScenario ? thumbnails[previewScenario.id] : undefined}
+        onClose={() => setPreviewScenario(null)}
+        onSelect={() => {
+          if (previewScenario) {
+            onSelect(previewScenario.id);
+            setPreviewScenario(null);
+          }
+        }}
+      />
     </div>
   );
 }
