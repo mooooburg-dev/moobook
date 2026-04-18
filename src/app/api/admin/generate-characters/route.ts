@@ -13,7 +13,8 @@ import {
   isValidGender,
   referenceImageColumn,
 } from "@/lib/utils/gender-columns";
-import type { ChildGender, ThemeId } from "@/types";
+import type { ChildGender } from "@/types";
+import type { PresetThemeId } from "@/lib/scenarios";
 
 const MOCK_MODE =
   process.env.USE_MOCK_AI === "true" || !process.env.REPLICATE_API_TOKEN;
@@ -29,7 +30,7 @@ const PLACEHOLDER_CHAR = (
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function isValidScenarioId(id: string): id is ThemeId {
+function isValidScenarioId(id: string): id is PresetThemeId {
   return id in scenarios;
 }
 
@@ -75,7 +76,7 @@ type TargetRow = {
 };
 
 async function runGeneration(
-  scenarioId: ThemeId,
+  scenarioId: PresetThemeId,
   row: TargetRow,
   inputImage: string,
   prompt: string,
@@ -125,7 +126,7 @@ async function runGeneration(
 }
 
 async function markFailed(
-  scenarioId: ThemeId,
+  scenarioId: PresetThemeId,
   pageNumber: number,
   gender: ChildGender,
   msg: string
@@ -143,7 +144,7 @@ async function markFailed(
 }
 
 async function generateInBackground(
-  scenarioId: ThemeId,
+  scenarioId: PresetThemeId,
   pageNumbers: number[] | null,
   gender: ChildGender
 ) {

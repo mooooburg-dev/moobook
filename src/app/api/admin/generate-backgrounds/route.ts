@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import Replicate from "replicate";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { scenarios } from "@/lib/scenarios";
-import type { ThemeId } from "@/types";
+import { scenarios, type PresetThemeId } from "@/lib/scenarios";
 
 const MOCK_MODE =
   process.env.USE_MOCK_AI === "true" || !process.env.REPLICATE_API_TOKEN;
@@ -18,7 +17,7 @@ const PLACEHOLDER_BG = (scenarioId: string, pageNumber: number) =>
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function isValidScenarioId(id: string): id is ThemeId {
+function isValidScenarioId(id: string): id is PresetThemeId {
   return id in scenarios;
 }
 
@@ -62,7 +61,7 @@ async function uploadToStorage(
 /**
  * 배경 생성 백그라운드 프로세스
  */
-async function generateInBackground(scenarioId: ThemeId) {
+async function generateInBackground(scenarioId: PresetThemeId) {
   const supabase = createAdminClient();
   const scenario = scenarios[scenarioId];
 

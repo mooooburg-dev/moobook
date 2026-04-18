@@ -1,4 +1,4 @@
-import type { Scenario, ScenarioCategory, ThemeId } from "@/types";
+import type { Book, Scenario, ScenarioCategory, ThemeId } from "@/types";
 import { forestAdventure } from "./forest-adventure";
 import { spaceExplorer } from "./space-explorer";
 import { oceanFriends } from "./ocean-friends";
@@ -10,7 +10,9 @@ import { bathMission } from "./bath-mission";
 import { firstDaySchool } from "./first-day-school";
 import { birthdayAdventure } from "./birthday-adventure";
 
-export const scenarios: Record<ThemeId, Scenario> = {
+export type PresetThemeId = Exclude<ThemeId, "custom">;
+
+export const scenarios: Record<PresetThemeId, Scenario> = {
   "forest-adventure": forestAdventure,
   "space-explorer": spaceExplorer,
   "ocean-friends": oceanFriends,
@@ -40,11 +42,29 @@ export const categoryOrder: ScenarioCategory[] = [
 ];
 
 export function getScenario(themeId: ThemeId): Scenario {
+  if (themeId === "custom") {
+    throw new Error("custom 테마는 getScenario로 조회할 수 없음. resolveScenario 사용");
+  }
   return scenarios[themeId];
 }
 
 export function getAllScenarios(): Scenario[] {
   return Object.values(scenarios);
+}
+
+/**
+ * book에 맞는 시나리오 반환. theme === "custom"이면 custom_scenario 사용.
+ */
+export function resolveScenario(
+  book: Pick<Book, "theme" | "custom_scenario">
+): Scenario {
+  if (book.theme === "custom") {
+    if (!book.custom_scenario) {
+      throw new Error("custom 테마인데 custom_scenario가 비어있음");
+    }
+    return { id: "custom", ...book.custom_scenario };
+  }
+  return scenarios[book.theme];
 }
 
 export function getScenariosByCategory(): {
