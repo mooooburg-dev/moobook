@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import GenerationProgress from "@/components/GenerationProgress";
 import BookPreview from "@/components/BookPreview";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import type { Book } from "@/types";
 
@@ -85,7 +85,7 @@ export default function BookDetailPage() {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center page-enter">
         <div className="text-4xl mb-4">😢</div>
-        <p className="text-accent-pink mb-4">{error}</p>
+        <p className="text-brand-pink mb-4">{error}</p>
         <Button onClick={() => router.push("/create")}>다시 시작하기</Button>
       </div>
     );

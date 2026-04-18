@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PhotoUploader from "@/components/PhotoUploader";
 import ThemeSelector from "@/components/ThemeSelector";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import type { ChildGender, ThemeId } from "@/types";
 
@@ -83,7 +83,7 @@ export default function CreatePage() {
         </p>
       </div>
 
-      <div className="mb-10 flex items-center justify-center gap-3 bg-linear-to-r from-primary/10 via-secondary/10 to-accent-blue/10 border border-primary/20 rounded-2xl px-5 py-4">
+      <div className="mb-10 flex items-center justify-center gap-3 bg-linear-to-r from-brand/10 via-brand-secondary/10 to-brand-blue/10 border border-brand/20 rounded-2xl px-5 py-4">
         <span className="text-2xl" aria-hidden>
           ✨
         </span>
@@ -103,7 +103,7 @@ export default function CreatePage() {
       {/* Step 1: 사진 업로드 */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>1</span>
+          <span className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>1</span>
           <h2
             className="text-lg text-text"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -117,7 +117,7 @@ export default function CreatePage() {
       {/* Step 2: 아이 이름 입력 */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-8 h-8 rounded-full bg-secondary text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>2</span>
+          <span className="w-8 h-8 rounded-full bg-brand-secondary text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>2</span>
           <h2
             className="text-lg text-text"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -130,7 +130,7 @@ export default function CreatePage() {
           value={childName}
           onChange={(e) => setChildName(e.target.value)}
           placeholder="동화 속 주인공 이름을 입력하세요"
-          className="w-full max-w-md mx-auto block px-5 py-3 border-2 border-primary/20 rounded-full text-center text-text bg-white focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
+          className="w-full max-w-md mx-auto block px-5 py-3 border-2 border-brand/20 rounded-full text-center text-text bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all"
           style={{ fontFamily: "var(--font-body)" }}
           maxLength={20}
         />
@@ -139,7 +139,7 @@ export default function CreatePage() {
       {/* Step 3: 아이 성별 */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-8 h-8 rounded-full bg-accent-pink text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>3</span>
+          <span className="w-8 h-8 rounded-full bg-brand-pink text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>3</span>
           <h2
             className="text-lg text-text"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -160,8 +160,8 @@ export default function CreatePage() {
                 onClick={() => setChildGender(opt.id)}
                 className={`flex flex-col items-center gap-2 py-5 rounded-2xl border-2 transition-all bg-white ${
                   selected
-                    ? "border-primary ring-2 ring-primary/30 shadow-md"
-                    : "border-primary/20 hover:border-primary/50"
+                    ? "border-brand ring-2 ring-brand/30 shadow-md"
+                    : "border-brand/20 hover:border-brand/50"
                 }`}
               >
                 <span className="text-4xl">{opt.emoji}</span>
@@ -180,7 +180,7 @@ export default function CreatePage() {
       {/* Step 4: 테마 선택 */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-8 h-8 rounded-full bg-accent-blue text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>4</span>
+          <span className="w-8 h-8 rounded-full bg-brand-blue text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>4</span>
           <h2
             className="text-lg text-text"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -193,7 +193,7 @@ export default function CreatePage() {
 
       {/* 에러 메시지 */}
       {error && (
-        <p className="text-center text-accent-pink text-sm mb-4">{error}</p>
+        <p className="text-center text-brand-pink text-sm mb-4">{error}</p>
       )}
 
       {/* 제출 */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import ProgressBar from "@/components/ui/ProgressBar";
+import { Progress } from "@/components/ui/progress";
 
 const PROGRESS_STEPS = [
   { progress: 5, message: "사진을 분석하고 있어요...", emoji: "📷", atMs: 0 },
@@ -80,10 +80,17 @@ export default function GenerationProgress() {
         {mounted ? currentStep.message : "준비 중이에요..."}
       </p>
 
-      <ProgressBar
-        progress={smoothProgress}
-        label="동화책 만드는 중"
-      />
+      <div className="w-full">
+        <div className="flex justify-between mb-2 text-sm text-text-light">
+          <span>동화책 만드는 중</span>
+          <span>{Math.round(smoothProgress)}%</span>
+        </div>
+        <Progress
+          value={smoothProgress}
+          className="h-4 bg-peach"
+          indicatorClassName="bg-linear-to-r from-brand to-brand-pink"
+        />
+      </div>
 
       <p className="text-xs text-text-lighter mt-4">
         AI가 열심히 그림을 그리고 있어요. 약 1~2분 정도 걸려요.

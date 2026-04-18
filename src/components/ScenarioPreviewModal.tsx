@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import type { Scenario } from "@/types";
-import Button from "./ui/Button";
+import { Button } from "@/components/ui/button";
 
 interface ScenarioPreviewModalProps {
   scenario: Scenario | null;
@@ -76,7 +76,7 @@ export default function ScenarioPreviewModal({
         className="bg-white w-full sm:max-w-xl sm:rounded-3xl rounded-t-3xl shadow-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative h-48 sm:h-56 overflow-hidden sm:rounded-t-3xl rounded-t-3xl bg-gradient-to-br from-primary/20 to-secondary/20">
+        <div className="relative h-48 sm:h-56 overflow-hidden sm:rounded-t-3xl rounded-t-3xl bg-gradient-to-br from-brand/20 to-brand-secondary/20">
           {thumbnail ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -135,11 +135,11 @@ export default function ScenarioPreviewModal({
               {beats.map((page, idx) => (
                 <li key={page.pageNumber} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold">
+                    <div className="w-8 h-8 rounded-full bg-brand/10 text-brand flex items-center justify-center text-sm font-semibold">
                       {idx + 1}
                     </div>
                     {idx < beats.length - 1 && (
-                      <div className="w-px flex-1 bg-primary/20 my-1" />
+                      <div className="w-px flex-1 bg-brand/20 my-1" />
                     )}
                   </div>
                   <div className="flex-1 pb-2">
@@ -165,15 +165,15 @@ export default function ScenarioPreviewModal({
           <div className="flex gap-3 pt-2">
             <Button
               variant="outline"
-              size="md"
+              size="default"
               className="flex-1"
               onClick={onClose}
             >
               닫기
             </Button>
             <Button
-              variant="primary"
-              size="md"
+              variant="default"
+              size="default"
               className="flex-1"
               onClick={onSelect}
             >

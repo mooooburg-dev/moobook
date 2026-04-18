@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Card from "@/components/ui/Card";
+import { Card } from "@/components/ui/card";
 import type { Order } from "@/types";
 
 const statusLabels: Record<string, string> = {
@@ -37,16 +37,16 @@ export default function OrdersPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
-      <h1 className="text-2xl font-extrabold text-gray-900 mb-8">
+      <h1 className="text-2xl font-extrabold text-text mb-8">
         내 주문 내역
       </h1>
 
       <div className="space-y-4">
         {orders.map((order) => (
-          <Card key={order.id}>
+          <Card key={order.id} className="p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="font-bold text-gray-900">
+                <p className="font-bold text-text">
                   소프트커버 책
                 </p>
                 <p className="text-sm text-gray-500 mt-1">

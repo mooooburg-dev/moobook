@@ -2,18 +2,33 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+
 import { scenarios } from "@/lib/scenarios";
 import { replaceChildName } from "@/lib/utils/korean-name";
+import {
+  Card,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { cn } from "@/lib/utils";
 import type { ChildGender, ScenarioBackground, ThemeId } from "@/types";
 
 const NAME_OPTIONS = ["지환", "서윤", "하윤", "도윤", "시우", "지안", "수아"];
 
-// 인쇄 기준 (페이지 크기 대비 %)
-const BLEED_PCT = 3; // 재단 여유 (가장자리에서 잘릴 수 있는 영역)
-const SAFE_PCT = 8; // 안전 영역 마진 (텍스트는 이 안쪽에만 배치)
+const BLEED_PCT = 3;
+const SAFE_PCT = 8;
 
-// 문장 단위 분할: 마침표/물음표/느낌표 뒤에서 줄바꿈.
-// 대화 닫는 따옴표(" ' ” ’)는 문장부호에 포함해서 함께 끊음.
 function splitSentences(text: string): string[] {
   const matches = text.match(/[^.!?]+[.!?]+["'”’]?\s*/g);
   if (!matches) return [text.trim()].filter(Boolean);
@@ -21,6 +36,35 @@ function splitSentences(text: string): string[] {
   const result = matches.map((s) => s.trim()).filter(Boolean);
   if (rest) result.push(rest);
   return result;
+}
+
+function ToggleGroup<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string; activeClass?: string }[];
+}) {
+  return (
+    <div className="inline-flex rounded-md border bg-background overflow-hidden">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className={cn(
+            "px-3 h-8 text-sm font-medium transition-colors cursor-pointer",
+            value === opt.value
+              ? opt.activeClass ?? "bg-primary text-primary-foreground"
+              : "text-foreground hover:bg-muted"
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export default function AdminPreviewDetailPage() {
@@ -84,7 +128,6 @@ export default function AdminPreviewDetailPage() {
     return map;
   }, [backgrounds]);
 
-  // 스프레드 시퀀스: [앞표지] [빈|p1] [p2|p3] ... [pN|빈] [뒷표지]
   type Leaf =
     | { type: "cover-front" }
     | { type: "cover-back" }
@@ -149,7 +192,7 @@ export default function AdminPreviewDetailPage() {
 
   if (!scenario) {
     return (
-      <div className="text-gray-500">존재하지 않는 시나리오입니다.</div>
+      <div className="text-muted-foreground">존재하지 않는 시나리오입니다.</div>
     );
   }
 
@@ -172,7 +215,7 @@ export default function AdminPreviewDetailPage() {
     if (overlayMode) {
       return (
         <>
-          <div className="absolute inset-0 bg-gray-100">
+          <div className="absolute inset-0 bg-muted">
             {imageUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -181,7 +224,7 @@ export default function AdminPreviewDetailPage() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground/60 text-sm">
                 배경 이미지 없음
               </div>
             )}
@@ -199,13 +242,13 @@ export default function AdminPreviewDetailPage() {
             }}
           />
           <div
-            className={`absolute flex ${
+            className={cn(
+              "absolute flex",
               overlayPosition === "top" ? "items-start" : "items-end"
-            }`}
+            )}
             style={{
               top: overlayPosition === "top" ? `${SAFE_PCT}%` : "auto",
-              bottom:
-                overlayPosition === "bottom" ? `${SAFE_PCT}%` : "auto",
+              bottom: overlayPosition === "bottom" ? `${SAFE_PCT}%` : "auto",
               left: `${SAFE_PCT}%`,
               right: `${SAFE_PCT}%`,
             }}
@@ -240,7 +283,7 @@ export default function AdminPreviewDetailPage() {
     return (
       <>
         <div
-          className="relative bg-gray-100 overflow-hidden"
+          className="relative bg-muted overflow-hidden"
           style={{ height: `${imageRatio}%` }}
         >
           {imageUrl ? (
@@ -251,7 +294,7 @@ export default function AdminPreviewDetailPage() {
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground/60 text-sm">
               배경 이미지 없음
             </div>
           )}
@@ -261,7 +304,7 @@ export default function AdminPreviewDetailPage() {
           style={{ height: `${textRatio}%` }}
         >
           <div
-            className="text-gray-800 leading-relaxed text-[17px] sm:text-lg space-y-1"
+            className="text-text leading-relaxed text-[17px] sm:text-lg space-y-1"
             style={{
               fontFamily: "'Jua', sans-serif",
               wordBreak: "keep-all",
@@ -271,7 +314,7 @@ export default function AdminPreviewDetailPage() {
               <p key={i}>{sentence}</p>
             ))}
           </div>
-          <span className="absolute bottom-2 right-4 text-xs text-gray-400 tabular-nums">
+          <span className="absolute bottom-2 right-4 text-xs text-muted-foreground tabular-nums">
             {page.pageNumber} / {scenario!.pageCount}
           </span>
         </div>
@@ -318,7 +361,7 @@ export default function AdminPreviewDetailPage() {
     return (
       <div className="absolute inset-0 bg-cream flex flex-col px-8 py-10">
         <div
-          className="text-gray-700 text-base mb-5"
+          className="text-text/80 text-base mb-5"
           style={{ fontFamily: "'Jua', sans-serif" }}
         >
           {replaceName("사랑하는 {childName}(이)에게")}
@@ -327,12 +370,12 @@ export default function AdminPreviewDetailPage() {
           {Array.from({ length: 9 }).map((_, i) => (
             <div
               key={i}
-              className="w-full border-b border-dashed border-gray-300"
+              className="w-full border-b border-dashed border-border"
             />
           ))}
         </div>
         <div
-          className="mt-5 text-right text-sm text-gray-500"
+          className="mt-5 text-right text-sm text-muted-foreground"
           style={{ fontFamily: "'Jua', sans-serif" }}
         >
           _______년 ___월 ___일
@@ -345,7 +388,7 @@ export default function AdminPreviewDetailPage() {
     return (
       <div className="absolute inset-0 bg-linear-to-br from-amber-100 to-rose-100 flex flex-col justify-between p-8">
         <div
-          className="text-gray-800 text-base leading-relaxed"
+          className="text-text text-base leading-relaxed"
           style={{
             fontFamily: "'Jua', sans-serif",
             wordBreak: "keep-all",
@@ -353,7 +396,7 @@ export default function AdminPreviewDetailPage() {
         >
           {scenario!.educationMessage}
         </div>
-        <div className="text-right text-xs text-gray-500 tabular-nums">
+        <div className="text-right text-xs text-muted-foreground tabular-nums">
           moobook · {childName}
         </div>
       </div>
@@ -422,7 +465,10 @@ export default function AdminPreviewDetailPage() {
         <div className="flex items-stretch justify-center w-full">
           {isCover ? (
             <div
-              className={`w-full max-w-[520px] ${aspectClass} relative rounded-xl overflow-hidden`}
+              className={cn(
+                "w-full max-w-[520px] relative rounded-xl overflow-hidden",
+                aspectClass
+              )}
               style={{
                 boxShadow:
                   "0 20px 40px -10px rgba(0,0,0,0.3), 0 8px 16px -4px rgba(0,0,0,0.15)",
@@ -445,27 +491,29 @@ export default function AdminPreviewDetailPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          <button
+          <Button
+            variant="outline"
             onClick={() => setSpreadIndex((i) => Math.max(i - 1, 0))}
             disabled={spreadIndex === 0}
-            className="px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            &larr; 이전
-          </button>
-          <span className="text-sm text-gray-600 tabular-nums">
+            <ChevronLeft className="size-4" />
+            이전
+          </Button>
+          <span className="text-sm text-muted-foreground tabular-nums">
             {spreadIndex + 1} / {spreads.length}
           </span>
-          <button
+          <Button
+            variant="outline"
             onClick={() =>
               setSpreadIndex((i) => Math.min(i + 1, spreads.length - 1))
             }
             disabled={spreadIndex === spreads.length - 1}
-            className="px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            다음 &rarr;
-          </button>
+            다음
+            <ChevronRight className="size-4" />
+          </Button>
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-muted-foreground">
           ← / → 키로 페이지를 넘길 수 있어요
         </p>
       </div>
@@ -473,245 +521,170 @@ export default function AdminPreviewDetailPage() {
   }
 
   return (
-    <div>
-      {/* 헤더 */}
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <div>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-end justify-between gap-4">
+        <div className="space-y-2">
           <button
             onClick={() => router.push(`/admin/scenarios/${scenarioId}`)}
-            className="text-sm text-gray-500 hover:text-gray-700 mb-2 inline-block"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
-            &larr; 목록으로
+            <ChevronLeft className="size-4" />
+            목록으로
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {scenario.title}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {scenarioId} · {scenario.pageCount}페이지
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {scenario.title}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {scenarioId} · {scenario.pageCount}페이지
+            </p>
+          </div>
         </div>
-        <button
-          disabled
-          className="px-4 py-2 text-sm font-medium rounded-md bg-gray-300 text-white cursor-not-allowed"
-        >
+        <Button disabled variant="secondary">
           PDF로 내보내기
-        </button>
+        </Button>
       </div>
 
-      {/* 컨트롤 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 flex flex-wrap gap-6 items-center sticky top-4 z-10 shadow-sm">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">뷰 모드</label>
-          <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
-            <button
-              onClick={() => setViewMode("spread")}
-              className={`px-3 py-1.5 text-sm ${
-                viewMode === "spread"
-                  ? "bg-gray-900 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              펼침
-            </button>
-            <button
-              onClick={() => setViewMode("scroll")}
-              className={`px-3 py-1.5 text-sm ${
-                viewMode === "scroll"
-                  ? "bg-gray-900 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              스크롤
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">책 형태</label>
-          <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
-            <button
-              onClick={() => setBookShape("portrait")}
-              className={`px-3 py-1.5 text-sm ${
-                bookShape === "portrait"
-                  ? "bg-gray-900 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              세로형 (3:4)
-            </button>
-            <button
-              onClick={() => setBookShape("square")}
-              className={`px-3 py-1.5 text-sm ${
-                bookShape === "square"
-                  ? "bg-gray-900 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              정사각형 (1:1)
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">
-            이미지 소스
-          </label>
-          <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
-            <button
-              onClick={() => setImageSource("character")}
-              className={`px-3 py-1.5 text-sm ${
-                imageSource === "character"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              캐릭터 포함
-            </button>
-            <button
-              onClick={() => setImageSource("background")}
-              className={`px-3 py-1.5 text-sm ${
-                imageSource === "background"
-                  ? "bg-gray-900 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              배경만
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">성별</label>
-          <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
-            <button
-              onClick={() => setGender("boy")}
-              className={`px-3 py-1.5 text-sm ${
-                gender === "boy"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              👦 남아
-            </button>
-            <button
-              onClick={() => setGender("girl")}
-              className={`px-3 py-1.5 text-sm ${
-                gender === "girl"
-                  ? "bg-pink-500 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              👧 여아
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">
-            아이 이름
-          </label>
-          <select
-            value={childName}
-            onChange={(e) => setChildName(e.target.value)}
-            className="px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400"
-          >
-            {NAME_OPTIONS.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {!overlayMode && (
-          <div className="flex items-center gap-3 flex-1 min-w-[280px]">
-            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-              이미지 : 텍스트
-            </label>
-            <input
-              type="range"
-              min={60}
-              max={80}
-              step={1}
-              value={imageRatio}
-              onChange={(e) => setImageRatio(Number(e.target.value))}
-              className="flex-1"
-            />
-            <span className="text-sm text-gray-600 tabular-nums whitespace-nowrap w-16 text-right">
-              {imageRatio} : {textRatio}
-            </span>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">
-            오버레이 모드
-          </label>
-          <button
-            onClick={() => setOverlayMode((v) => !v)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              overlayMode ? "bg-gray-900" : "bg-gray-300"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                overlayMode ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">
-            인쇄 가이드
-          </label>
-          <button
-            onClick={() => setShowPrintGuides((v) => !v)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              showPrintGuides ? "bg-red-500" : "bg-gray-300"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                showPrintGuides ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
-
-        {overlayMode && (
+      <Card className="sticky top-4 z-10 py-4 gap-0">
+        <CardContent className="px-4 flex flex-wrap gap-x-6 gap-y-3 items-center">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">
-              텍스트 위치
-            </label>
-            <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
-              <button
-                onClick={() => setOverlayPosition("top")}
-                className={`px-3 py-1.5 text-sm ${
-                  overlayPosition === "top"
-                    ? "bg-gray-900 text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                상단
-              </button>
-              <button
-                onClick={() => setOverlayPosition("bottom")}
-                className={`px-3 py-1.5 text-sm ${
-                  overlayPosition === "bottom"
-                    ? "bg-gray-900 text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                하단
-              </button>
-            </div>
+            <Label className="text-xs text-muted-foreground">뷰 모드</Label>
+            <ToggleGroup
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { value: "spread", label: "펼침" },
+                { value: "scroll", label: "스크롤" },
+              ]}
+            />
           </div>
-        )}
-      </div>
+
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">책 형태</Label>
+            <ToggleGroup
+              value={bookShape}
+              onChange={setBookShape}
+              options={[
+                { value: "portrait", label: "세로형 3:4" },
+                { value: "square", label: "정사각형" },
+              ]}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">이미지</Label>
+            <ToggleGroup
+              value={imageSource}
+              onChange={setImageSource}
+              options={[
+                {
+                  value: "character",
+                  label: "캐릭터",
+                  activeClass: "bg-indigo-600 text-white",
+                },
+                { value: "background", label: "배경만" },
+              ]}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">성별</Label>
+            <ToggleGroup
+              value={gender}
+              onChange={setGender}
+              options={[
+                {
+                  value: "boy" as ChildGender,
+                  label: "👦 남아",
+                  activeClass: "bg-blue-600 text-white",
+                },
+                {
+                  value: "girl" as ChildGender,
+                  label: "👧 여아",
+                  activeClass: "bg-pink-500 text-white",
+                },
+              ]}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">아이 이름</Label>
+            <Select value={childName} onValueChange={setChildName}>
+              <SelectTrigger size="sm" className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NAME_OPTIONS.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {!overlayMode && (
+            <div className="flex items-center gap-3 flex-1 min-w-[260px]">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                이미지 : 텍스트
+              </Label>
+              <Slider
+                min={60}
+                max={80}
+                step={1}
+                value={imageRatio}
+                onChange={(e) => setImageRatio(Number(e.target.value))}
+                className="flex-1"
+              />
+              <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap w-14 text-right">
+                {imageRatio} : {textRatio}
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Label htmlFor="overlay-mode" className="text-xs text-muted-foreground">
+              오버레이
+            </Label>
+            <Switch
+              id="overlay-mode"
+              checked={overlayMode}
+              onCheckedChange={setOverlayMode}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Label htmlFor="print-guides" className="text-xs text-muted-foreground">
+              인쇄 가이드
+            </Label>
+            <Switch
+              id="print-guides"
+              checked={showPrintGuides}
+              onCheckedChange={setShowPrintGuides}
+              className="data-[state=checked]:bg-red-500"
+            />
+          </div>
+
+          {overlayMode && (
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">텍스트 위치</Label>
+              <ToggleGroup
+                value={overlayPosition}
+                onChange={setOverlayPosition}
+                options={[
+                  { value: "top", label: "상단" },
+                  { value: "bottom", label: "하단" },
+                ]}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {loading ? (
-        <div className="text-gray-400">로딩 중...</div>
+        <div className="text-muted-foreground inline-flex items-center gap-2">
+          <Loader2 className="size-4 animate-spin" /> 로딩 중...
+        </div>
       ) : viewMode === "spread" ? (
         renderSpreadView()
       ) : (
@@ -723,9 +696,10 @@ export default function AdminPreviewDetailPage() {
             return (
               <div
                 key={page.pageNumber}
-                className={`w-full max-w-[480px] ${
+                className={cn(
+                  "w-full max-w-[480px] bg-white rounded-xl overflow-hidden border flex flex-col relative",
                   bookShape === "square" ? "aspect-square" : "aspect-3/4"
-                } bg-white rounded-xl overflow-hidden border border-gray-200 flex flex-col relative`}
+                )}
                 style={{
                   boxShadow:
                     "0 10px 30px -5px rgba(0,0,0,0.15), 0 4px 6px -2px rgba(0,0,0,0.05)",
@@ -733,8 +707,7 @@ export default function AdminPreviewDetailPage() {
               >
                 {overlayMode ? (
                   <>
-                    {/* 풀블리드 이미지 */}
-                    <div className="absolute inset-0 bg-gray-100">
+                    <div className="absolute inset-0 bg-muted">
                       {imageUrl ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img
@@ -743,13 +716,12 @@ export default function AdminPreviewDetailPage() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/60 text-sm">
                           배경 이미지 없음
                         </div>
                       )}
                     </div>
 
-                    {/* 그라디언트 오버레이 (안전 영역 바깥부터 시작) */}
                     <div
                       className="absolute inset-x-0 pointer-events-none"
                       style={{
@@ -763,13 +735,11 @@ export default function AdminPreviewDetailPage() {
                       }}
                     />
 
-                    {/* 텍스트 (안전 영역 안쪽에만 배치) */}
                     <div
-                      className={`absolute flex ${
-                        overlayPosition === "top"
-                          ? "items-start"
-                          : "items-end"
-                      }`}
+                      className={cn(
+                        "absolute flex",
+                        overlayPosition === "top" ? "items-start" : "items-end"
+                      )}
                       style={{
                         top:
                           overlayPosition === "top" ? `${SAFE_PCT}%` : "auto",
@@ -810,9 +780,8 @@ export default function AdminPreviewDetailPage() {
                   </>
                 ) : (
                   <>
-                    {/* 이미지 영역 */}
                     <div
-                      className="relative bg-gray-100 overflow-hidden"
+                      className="relative bg-muted overflow-hidden"
                       style={{ height: `${imageRatio}%` }}
                     >
                       {imageUrl ? (
@@ -823,19 +792,18 @@ export default function AdminPreviewDetailPage() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/60 text-sm">
                           배경 이미지 없음
                         </div>
                       )}
                     </div>
 
-                    {/* 텍스트 영역 */}
                     <div
                       className="relative bg-cream px-6 py-5 flex items-center"
                       style={{ height: `${textRatio}%` }}
                     >
                       <div
-                        className="text-gray-800 leading-relaxed text-[17px] sm:text-lg space-y-1"
+                        className="text-text leading-relaxed text-[17px] sm:text-lg space-y-1"
                         style={{
                           fontFamily: "'Jua', sans-serif",
                           wordBreak: "keep-all",
@@ -847,17 +815,15 @@ export default function AdminPreviewDetailPage() {
                           )
                         )}
                       </div>
-                      <span className="absolute bottom-2 right-4 text-xs text-gray-400 tabular-nums">
+                      <span className="absolute bottom-2 right-4 text-xs text-muted-foreground tabular-nums">
                         {page.pageNumber} / {scenario.pageCount}
                       </span>
                     </div>
                   </>
                 )}
 
-                {/* 인쇄 가이드 오버레이 */}
                 {showPrintGuides && (
                   <>
-                    {/* 재단선 (bleed) — 빨간 실선 */}
                     <div
                       className="absolute pointer-events-none border border-red-500"
                       style={{
@@ -867,7 +833,6 @@ export default function AdminPreviewDetailPage() {
                         right: `${BLEED_PCT}%`,
                       }}
                     />
-                    {/* 안전 영역 (safe zone) — 초록 점선 */}
                     <div
                       className="absolute pointer-events-none border border-dashed border-green-500"
                       style={{
