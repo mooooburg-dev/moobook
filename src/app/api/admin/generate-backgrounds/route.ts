@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import Replicate from "replicate";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scenarios, type PresetThemeId } from "@/lib/scenarios";
+import {
+  generateImageFromText,
+  isGeminiMockMode,
+  STYLE_SUFFIX,
+} from "@/lib/gemini";
+import { uploadImageBuffer, uploadImageFromUrl } from "@/lib/storage/upload-image";
 
-const MOCK_MODE =
-  process.env.USE_MOCK_AI === "true" || !process.env.REPLICATE_API_TOKEN;
-
-const BACKGROUND_MODEL = "black-forest-labs/flux-1.1-pro";
-
-const STYLE_SUFFIX =
-  ", warm watercolor children's book illustration, soft pastel colors, gentle lighting, storybook atmosphere, high quality, detailed background, no text, no words, no letters";
+const MOCK_MODE = isGeminiMockMode();
 
 const PLACEHOLDER_BG = (scenarioId: string, pageNumber: number) =>
   `https://placehold.co/768x1024/d4edda/2d6a4f?text=${scenarioId}+p${pageNumber}`;
@@ -27,36 +26,9 @@ async function verifyAdmin(): Promise<boolean> {
   return auth?.value === process.env.ADMIN_PASSWORD;
 }
 
-/**
- * 배경 이미지를 Supabase Storage에 업로드
- */
-async function uploadToStorage(
-  supabase: ReturnType<typeof createAdminClient>,
-  imageUrl: string,
-  scenarioId: string,
-  pageNumber: number
-): Promise<string> {
-  const res = await fetch(imageUrl);
-  if (!res.ok) throw new Error(`이미지 다운로드 실패: ${res.status}`);
-
-  const buffer = await res.arrayBuffer();
-  const path = `${scenarioId}/page_${String(pageNumber).padStart(2, "0")}.png`;
-
-  const { error } = await supabase.storage
-    .from("moobook_backgrounds")
-    .upload(path, buffer, {
-      contentType: "image/png",
-      upsert: true,
-    });
-
-  if (error) throw new Error(`Storage 업로드 실패: ${error.message}`);
-
-  const { data: urlData } = supabase.storage
-    .from("moobook_backgrounds")
-    .getPublicUrl(path);
-
-  return urlData.publicUrl;
-}
+const BG_BUCKET = "moobook_backgrounds";
+const bgPath = (scenarioId: string, pageNumber: number) =>
+  `${scenarioId}/page_${String(pageNumber).padStart(2, "0")}.png`;
 
 /**
  * 배경 생성 백그라운드 프로세스
@@ -85,12 +57,8 @@ async function generateInBackground(scenarioId: PresetThemeId) {
   }
 
   console.log(
-    `[BG] ${scenarioId}: ${pagesToGenerate.length}개 페이지 생성 시작`
+    `[BG] ${scenarioId}: ${pagesToGenerate.length}개 페이지 생성 시작 (Gemini)`
   );
-
-  const replicate = MOCK_MODE
-    ? null
-    : new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
 
   for (const page of pagesToGenerate) {
     const tag = `[BG] ${scenarioId} p${page.pageNumber}`;
@@ -109,45 +77,37 @@ async function generateInBackground(scenarioId: PresetThemeId) {
       );
 
       let imageUrl: string;
-      let replicateOutputUrl: string | null = null;
 
-      if (MOCK_MODE || !replicate) {
-        // Mock 모드: placeholder 사용
+      if (MOCK_MODE) {
+        // Mock 모드: placeholder URL을 직접 Storage에 업로드해 최종 URL 확보
         console.log(`${tag} [MOCK] placeholder 사용`);
-        imageUrl = PLACEHOLDER_BG(scenarioId, page.pageNumber);
+        imageUrl = await uploadImageFromUrl(supabase, {
+          bucket: BG_BUCKET,
+          path: bgPath(scenarioId, page.pageNumber),
+          url: PLACEHOLDER_BG(scenarioId, page.pageNumber),
+        });
       } else {
-        // Replicate API 호출
-        console.log(`${tag} Replicate 호출 시작`);
-        const prompt = page.illustrationPrompt.includes(STYLE_SUFFIX.trim())
+        // Gemini 호출 → Buffer로 직접 업로드
+        console.log(`${tag} Gemini 호출 시작`);
+        const prompt = page.illustrationPrompt.includes("watercolor children's book")
           ? page.illustrationPrompt
           : page.illustrationPrompt + STYLE_SUFFIX;
 
-        const output = await replicate.run(
-          BACKGROUND_MODEL as `${string}/${string}`,
-          {
-            input: {
-              prompt,
-              aspect_ratio: "3:4",
-              output_format: "png",
-              safety_tolerance: 2,
-            },
-          }
-        );
+        const { buffer, mimeType } = await generateImageFromText(prompt, {
+          tag,
+          appendStyle: false,
+          pageNumber: page.pageNumber,
+        });
 
-        replicateOutputUrl = String(output);
-        if (!replicateOutputUrl.startsWith("http")) {
-          throw new Error("유효하지 않은 Replicate URL");
-        }
+        console.log(`${tag} Gemini 완료, Storage 업로드 시작`);
 
-        console.log(`${tag} Replicate 완료, Storage 업로드 시작`);
-
-        // Supabase Storage에 영구 저장
-        imageUrl = await uploadToStorage(
-          supabase,
-          replicateOutputUrl,
-          scenarioId,
-          page.pageNumber
-        );
+        imageUrl = await uploadImageBuffer(supabase, {
+          bucket: BG_BUCKET,
+          path: bgPath(scenarioId, page.pageNumber),
+          buffer,
+          contentType: mimeType,
+          upsert: true,
+        });
       }
 
       // DB 업데이트: completed
@@ -155,7 +115,7 @@ async function generateInBackground(scenarioId: PresetThemeId) {
         .from("moobook_scenario_backgrounds")
         .update({
           image_url: imageUrl,
-          replicate_output_url: replicateOutputUrl,
+          replicate_output_url: null,
           status: "completed",
           updated_at: new Date().toISOString(),
         })
@@ -164,9 +124,9 @@ async function generateInBackground(scenarioId: PresetThemeId) {
 
       console.log(`${tag} 완료`);
 
-      // Rate limit 방지: 5초 대기 (마지막 페이지 제외)
+      // Gemini rate limit 대비: 2초 대기 (마지막 페이지 제외)
       if (page !== pagesToGenerate[pagesToGenerate.length - 1] && !MOCK_MODE) {
-        await sleep(5000);
+        await sleep(2000);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
