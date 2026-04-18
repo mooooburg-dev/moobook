@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   generatePreviewPages,
   generateRemainingPages,
-} from "@/lib/replicate";
+} from "@/lib/image-pipeline";
 import { resolveScenario } from "@/lib/scenarios";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ThemeId } from "@/types";
