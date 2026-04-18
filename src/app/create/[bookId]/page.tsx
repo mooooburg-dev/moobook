@@ -3,9 +3,10 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import GenerationProgress from "@/components/GenerationProgress";
-import BookPreview from "@/components/BookPreview";
+import BookPreview, { type BookPreviewPage } from "@/components/BookPreview";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { resolveScenario } from "@/lib/scenarios";
 import type { Book } from "@/types";
 
 export default function BookDetailPage() {
@@ -114,9 +115,27 @@ export default function BookDetailPage() {
         </p>
       </div>
 
-      {book.preview_pages && (
-        <BookPreview pages={book.preview_pages} locked />
-      )}
+      {book.preview_pages && (() => {
+        let previewPages: BookPreviewPage[] = book.preview_pages.map((url) => ({
+          imageUrl: url,
+        }));
+        try {
+          const scenario = resolveScenario(book);
+          previewPages = book.preview_pages.map((url, idx) => ({
+            imageUrl: url,
+            text: scenario.pages[idx]?.text,
+          }));
+        } catch {
+          // 시나리오 해석 실패 시 이미지만 표시
+        }
+        return (
+          <BookPreview
+            pages={previewPages}
+            childName={book.child_name}
+            locked
+          />
+        );
+      })()}
 
       <div className="mt-10 text-center">
         <Button
