@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import Replicate from "replicate";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scenarios } from "@/lib/scenarios";
 import {
@@ -15,11 +14,21 @@ import {
 } from "@/lib/utils/gender-columns";
 import type { ChildGender } from "@/types";
 import type { PresetThemeId } from "@/lib/scenarios";
+import {
+  createStoryChatSession,
+  generateImageWithReferences,
+  generateNextPageInSession,
+  isGeminiMockMode,
+  type GeminiImageResult,
+  type ReferenceImage,
+} from "@/lib/gemini";
+import type { Chat } from "@google/genai";
+import {
+  uploadImageBuffer,
+  uploadImageFromUrl,
+} from "@/lib/storage/upload-image";
 
-const MOCK_MODE =
-  process.env.USE_MOCK_AI === "true" || !process.env.REPLICATE_API_TOKEN;
-
-const CHARACTER_MODEL = "black-forest-labs/flux-kontext-pro";
+const MOCK_MODE = isGeminiMockMode();
 
 const PLACEHOLDER_CHAR = (
   scenarioId: string,
@@ -27,6 +36,14 @@ const PLACEHOLDER_CHAR = (
   gender: ChildGender
 ) =>
   `https://placehold.co/768x1024/ffe5d9/d2691e?text=${scenarioId}+${gender}+p${pageNumber}`;
+
+const CHAR_BUCKET = "moobook_backgrounds";
+const charPath = (
+  scenarioId: string,
+  pageNumber: number,
+  gender: ChildGender
+) =>
+  `${scenarioId}/char_${gender}_page_${String(pageNumber).padStart(2, "0")}_${Date.now()}.png`;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -40,34 +57,16 @@ async function verifyAdmin(): Promise<boolean> {
   return auth?.value === process.env.ADMIN_PASSWORD;
 }
 
-async function uploadToStorage(
-  supabase: ReturnType<typeof createAdminClient>,
-  imageUrl: string,
-  scenarioId: string,
-  pageNumber: number,
-  gender: ChildGender
-): Promise<string> {
-  const res = await fetch(imageUrl);
-  if (!res.ok) throw new Error(`이미지 다운로드 실패: ${res.status}`);
-
-  const buffer = await res.arrayBuffer();
-  const ts = Date.now();
-  const path = `${scenarioId}/char_${gender}_page_${String(pageNumber).padStart(2, "0")}_${ts}.png`;
-
-  const { error } = await supabase.storage
-    .from("moobook_backgrounds")
-    .upload(path, buffer, {
-      contentType: "image/png",
-      upsert: false,
-    });
-
-  if (error) throw new Error(`Storage 업로드 실패: ${error.message}`);
-
-  const { data: urlData } = supabase.storage
-    .from("moobook_backgrounds")
-    .getPublicUrl(path);
-
-  return urlData.publicUrl;
+async function fetchReferenceImage(url: string): Promise<ReferenceImage> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`참조 이미지 다운로드 실패: ${res.status}`);
+  }
+  const ab = await res.arrayBuffer();
+  return {
+    buffer: Buffer.from(ab),
+    mimeType: res.headers.get("content-type") ?? "image/png",
+  };
 }
 
 type TargetRow = {
@@ -75,15 +74,27 @@ type TargetRow = {
   image_url: string | null;
 };
 
-async function runGeneration(
-  scenarioId: PresetThemeId,
-  row: TargetRow,
-  inputImage: string,
-  prompt: string,
-  tag: string,
-  replicate: Replicate | null,
-  gender: ChildGender
-): Promise<string> {
+interface RunGenerationArgs {
+  scenarioId: PresetThemeId;
+  row: TargetRow;
+  prompt: string;
+  tag: string;
+  gender: ChildGender;
+  chat?: Chat | null;
+  chatReferences?: ReferenceImage[];
+  fallbackReferenceUrl?: string | null;
+}
+
+async function runGeneration({
+  scenarioId,
+  row,
+  prompt,
+  tag,
+  gender,
+  chat,
+  chatReferences = [],
+  fallbackReferenceUrl,
+}: RunGenerationArgs): Promise<string> {
   const supabase = createAdminClient();
   const statusCol = characterStatusColumn(gender);
 
@@ -97,32 +108,44 @@ async function runGeneration(
     .eq("scenario_id", scenarioId)
     .eq("page_number", row.page_number);
 
-  if (MOCK_MODE || !replicate) {
+  if (MOCK_MODE) {
     console.log(`${tag} [MOCK] placeholder 사용`);
-    return PLACEHOLDER_CHAR(scenarioId, row.page_number, gender);
+    return uploadImageFromUrl(supabase, {
+      bucket: CHAR_BUCKET,
+      path: charPath(scenarioId, row.page_number, gender),
+      url: PLACEHOLDER_CHAR(scenarioId, row.page_number, gender),
+      upsert: false,
+    });
   }
 
-  console.log(`${tag} Replicate 호출 시작`);
-  const output = await replicate.run(
-    CHARACTER_MODEL as `${string}/${string}`,
-    {
-      input: {
-        input_image: inputImage,
-        prompt,
-        aspect_ratio: "3:4",
-        output_format: "png",
-        safety_tolerance: 2,
-      },
-    }
-  );
-
-  const outputUrl = String(output);
-  if (!outputUrl.startsWith("http")) {
-    throw new Error("유효하지 않은 Replicate URL");
+  console.log(`${tag} Gemini 호출 시작`);
+  let image: GeminiImageResult;
+  if (chat) {
+    image = await generateNextPageInSession(chat, prompt, chatReferences, {
+      tag,
+      pageNumber: row.page_number,
+    });
+  } else if (fallbackReferenceUrl) {
+    image = await generateImageWithReferences(
+      prompt,
+      [{ url: fallbackReferenceUrl }],
+      {
+        tag,
+        pageNumber: row.page_number,
+      }
+    );
+  } else {
+    throw new Error("chat 세션과 fallbackReferenceUrl 모두 없음");
   }
 
-  console.log(`${tag} Replicate 완료, Storage 업로드 시작`);
-  return uploadToStorage(supabase, outputUrl, scenarioId, row.page_number, gender);
+  console.log(`${tag} Gemini 완료, Storage 업로드 시작`);
+  return uploadImageBuffer(supabase, {
+    bucket: CHAR_BUCKET,
+    path: charPath(scenarioId, row.page_number, gender),
+    buffer: image.buffer,
+    contentType: image.mimeType,
+    upsert: false,
+  });
 }
 
 async function markFailed(
@@ -167,10 +190,6 @@ async function generateInBackground(
     return;
   }
 
-  const replicate = MOCK_MODE
-    ? null
-    : new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
-
   type Row = {
     page_number: number;
     status: string;
@@ -189,22 +208,38 @@ async function generateInBackground(
     return true;
   };
 
-  // 1페이지: 배경 위에 캐릭터 추가
+  // 풀배치: 1페이지부터 시작하는 경우 chat 세션으로 캐릭터 일관성 확보
+  let chat: Chat | null = null;
+  let chatFailureStreak = 0;
+  const shouldUseChat =
+    !MOCK_MODE && firstPageRow && isEligible(firstPageRow);
+
+  // 1페이지: 배경 위에 캐릭터 추가 (chat 세션 시작점)
   if (firstPageRow && isEligible(firstPageRow)) {
     const page = scenario.pages.find((p) => p.pageNumber === 1);
     if (page && firstPageRow.image_url) {
       const tag = `[CHAR:${gender}] ${scenarioId} p1 (first)`;
       const prompt = buildFirstPagePrompt(scenarioId, page, gender);
       try {
-        const url = await runGeneration(
+        if (shouldUseChat) {
+          chat = createStoryChatSession();
+        }
+
+        let chatReferences: ReferenceImage[] = [];
+        if (chat) {
+          chatReferences = [await fetchReferenceImage(firstPageRow.image_url)];
+        }
+
+        const url = await runGeneration({
           scenarioId,
-          firstPageRow,
-          firstPageRow.image_url,
+          row: firstPageRow,
           prompt,
           tag,
-          replicate,
-          gender
-        );
+          gender,
+          chat,
+          chatReferences,
+          fallbackReferenceUrl: chat ? null : firstPageRow.image_url,
+        });
         await supabase
           .from("moobook_scenario_backgrounds")
           .update({
@@ -222,11 +257,13 @@ async function generateInBackground(
           gender,
           err instanceof Error ? err.message : String(err)
         );
+        // 1페이지 실패 시 chat 세션 유지 불가 → partial 모드로 강등
+        chat = null;
       }
     }
   }
 
-  // 2~12페이지: 성별별 레퍼런스 필요
+  // 2~12페이지
   const restTargets = typedRows
     .filter((r) => r.page_number !== 1 && isEligible(r))
     .sort((a, b) => a.page_number - b.page_number);
@@ -236,26 +273,30 @@ async function generateInBackground(
     return;
   }
 
-  const { data: refRow } = await supabase
-    .from("moobook_scenario_backgrounds")
-    .select(refCol)
-    .eq("scenario_id", scenarioId)
-    .eq("page_number", 1)
-    .maybeSingle();
+  // chat 세션이 없으면 (partial 모드 또는 1페이지 실패) refUrl 기반으로 동작
+  let referenceUrl: string | null = null;
+  if (!chat) {
+    const { data: refRow } = await supabase
+      .from("moobook_scenario_backgrounds")
+      .select(refCol)
+      .eq("scenario_id", scenarioId)
+      .eq("page_number", 1)
+      .maybeSingle();
 
-  const referenceUrl = (refRow as Record<string, string | null> | null)?.[
-    refCol
-  ] ?? null;
+    referenceUrl = (refRow as Record<string, string | null> | null)?.[
+      refCol
+    ] ?? null;
 
-  if (!referenceUrl) {
-    console.warn(
-      `[CHAR:${gender}] ${scenarioId}: 레퍼런스 미설정으로 2p 이후 생성 스킵`
-    );
-    return;
+    if (!referenceUrl) {
+      console.warn(
+        `[CHAR:${gender}] ${scenarioId}: 레퍼런스 미설정으로 2p 이후 생성 스킵`
+      );
+      return;
+    }
   }
 
   console.log(
-    `[CHAR:${gender}] ${scenarioId}: 2p 이후 ${restTargets.length}페이지 레퍼런스 기반 생성 시작`
+    `[CHAR:${gender}] ${scenarioId}: 2p 이후 ${restTargets.length}페이지 생성 시작 (${chat ? "chat 세션" : "refUrl"})`
   );
 
   for (let i = 0; i < restTargets.length; i++) {
@@ -263,19 +304,20 @@ async function generateInBackground(
     const page = scenario.pages.find((p) => p.pageNumber === row.page_number);
     if (!page) continue;
 
-    const tag = `[CHAR:${gender}] ${scenarioId} p${row.page_number} (ref)`;
+    const tag = `[CHAR:${gender}] ${scenarioId} p${row.page_number} (${chat ? "chat" : "ref"})`;
     const prompt = buildReferenceBasedPrompt(scenarioId, page, gender);
 
     try {
-      const url = await runGeneration(
+      const url = await runGeneration({
         scenarioId,
         row,
-        referenceUrl,
         prompt,
         tag,
-        replicate,
-        gender
-      );
+        gender,
+        chat,
+        chatReferences: [],
+        fallbackReferenceUrl: chat ? null : referenceUrl,
+      });
       await supabase
         .from("moobook_scenario_backgrounds")
         .update({
@@ -286,17 +328,39 @@ async function generateInBackground(
         .eq("scenario_id", scenarioId)
         .eq("page_number", row.page_number);
       console.log(`${tag} 완료`);
+      chatFailureStreak = 0;
 
       if (i < restTargets.length - 1 && !MOCK_MODE) {
-        await sleep(5000);
+        await sleep(2000);
       }
     } catch (err) {
-      await markFailed(
-        scenarioId,
-        row.page_number,
-        gender,
-        err instanceof Error ? err.message : String(err)
-      );
+      const msg = err instanceof Error ? err.message : String(err);
+      await markFailed(scenarioId, row.page_number, gender, msg);
+
+      if (chat) {
+        chatFailureStreak++;
+        if (chatFailureStreak >= 2) {
+          console.warn(
+            `[CHAR:${gender}] ${scenarioId}: chat 세션 2연속 실패 → refUrl 경로로 강등`
+          );
+          chat = null;
+          const { data: refRow } = await supabase
+            .from("moobook_scenario_backgrounds")
+            .select(refCol)
+            .eq("scenario_id", scenarioId)
+            .eq("page_number", 1)
+            .maybeSingle();
+          referenceUrl = (refRow as Record<string, string | null> | null)?.[
+            refCol
+          ] ?? null;
+          if (!referenceUrl) {
+            console.warn(
+              `[CHAR:${gender}] ${scenarioId}: refUrl 없음 → 이후 페이지 스킵`
+            );
+            break;
+          }
+        }
+      }
     }
   }
 
