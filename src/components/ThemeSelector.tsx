@@ -14,7 +14,7 @@ const themeConfig: Record<ThemeId, { emoji: string; bgColor: string; borderColor
   "forest-adventure": {
     emoji: "🌳",
     bgColor: "bg-green-50",
-    borderColor: "border-secondary",
+    borderColor: "border-brand-secondary",
     selectedBg: "bg-green-50",
   },
   "ocean-friends": {
@@ -62,7 +62,7 @@ const themeConfig: Record<ThemeId, { emoji: string; bgColor: string; borderColor
   "space-explorer": {
     emoji: "🚀",
     bgColor: "bg-indigo-50",
-    borderColor: "border-accent-blue",
+    borderColor: "border-brand-blue",
     selectedBg: "bg-indigo-50",
   },
   "dinosaur-world": {
@@ -121,7 +121,7 @@ export default function ThemeSelector({
                   className={`bg-white rounded-3xl shadow-md p-6 border-2 cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 text-center ${
                     isSelected
                       ? `${config.borderColor} ${config.selectedBg} shadow-lg -translate-y-1`
-                      : "border-transparent hover:border-primary/20"
+                      : "border-transparent hover:border-brand/20"
                   }`}
                   onClick={() => onSelect(scenario.id)}
                 >
@@ -150,7 +150,7 @@ export default function ThemeSelector({
                     {scenario.targetAge} / {scenario.pageCount}페이지
                   </p>
                   {isSelected && (
-                    <div className="mt-3 text-primary text-sm" style={{ fontFamily: "var(--font-heading)" }}>
+                    <div className="mt-3 text-brand text-sm" style={{ fontFamily: "var(--font-heading)" }}>
                       ✓ 선택됨
                     </div>
                   )}
@@ -160,7 +160,7 @@ export default function ThemeSelector({
                       e.stopPropagation();
                       setPreviewScenario(scenario);
                     }}
-                    className="mt-3 text-xs text-text-light hover:text-primary underline underline-offset-2 transition-colors"
+                    className="mt-3 text-xs text-text-light hover:text-brand underline underline-offset-2 transition-colors"
                   >
                     이야기 미리보기
                   </button>

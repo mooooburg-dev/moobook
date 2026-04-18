@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import Image from "next/image";
 import { validateFacePhoto } from "@/lib/utils/face-detection";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 interface PhotoUploaderProps {
   onPhotoSelected: (file: File) => void;
@@ -59,7 +59,7 @@ export default function PhotoUploader({ onPhotoSelected }: PhotoUploaderProps) {
           <div className="flex flex-col items-center gap-3 text-text-light">
             {/* 카메라 + 액자 아이콘 */}
             <div className="relative">
-              <div className="w-20 h-20 rounded-2xl border-3 border-dashed border-primary/40 flex items-center justify-center bg-peach/50">
+              <div className="w-20 h-20 rounded-2xl border-3 border-dashed border-brand/40 flex items-center justify-center bg-peach/50">
                 <span className="text-4xl">📷</span>
               </div>
               <span className="absolute -bottom-1 -right-1 text-lg">✨</span>
@@ -84,13 +84,13 @@ export default function PhotoUploader({ onPhotoSelected }: PhotoUploaderProps) {
       </label>
 
       {isValidating && (
-        <p className="mt-3 text-sm text-primary text-center animate-pulse">
+        <p className="mt-3 text-sm text-brand text-center animate-pulse">
           ✨ 사진을 확인하고 있어요...
         </p>
       )}
 
       {error && (
-        <p className="mt-3 text-sm text-accent-pink text-center">{error}</p>
+        <p className="mt-3 text-sm text-brand-pink text-center">{error}</p>
       )}
 
       {preview && (

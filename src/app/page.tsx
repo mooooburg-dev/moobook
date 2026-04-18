@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import Button from '@/components/ui/Button';
+import { Button } from "@/components/ui/button";
 
 function WaveDivider({
   fillFrom,
@@ -165,7 +165,7 @@ export default function Home() {
               우리 아이가
               <br />
               주인공인{' '}
-              <span className="text-primary relative">
+              <span className="text-brand relative">
                 동화책
                 <svg
                   className="absolute -bottom-2 left-0 w-full h-3"
@@ -235,21 +235,21 @@ export default function Home() {
                 emoji: '📸',
                 title: '사진 업로드',
                 desc: '아이의 정면 사진 1장을 올려주세요',
-                color: 'bg-primary',
+                color: 'bg-brand',
               },
               {
                 step: '2',
                 emoji: '🎨',
                 title: '테마 선택',
                 desc: '숲속 대모험, 우주 탐험대 중 선택!',
-                color: 'bg-secondary',
+                color: 'bg-brand-secondary',
               },
               {
                 step: '3',
                 emoji: '📖',
                 title: '동화책 완성',
                 desc: '12페이지 동화책이 뚝딱 완성돼요',
-                color: 'bg-accent-blue',
+                color: 'bg-brand-blue',
               },
             ].map((item) => (
               <div key={item.step} className="relative z-10">
@@ -292,7 +292,7 @@ export default function Home() {
 
           <div className="max-w-md mx-auto">
             {/* 소프트커버 책 */}
-            <div className="bg-white rounded-3xl shadow-lg p-8 border-2 border-primary relative overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className="bg-white rounded-3xl shadow-lg p-8 border-2 border-brand relative overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
               <div className="text-4xl mb-3">📚</div>
               <h3
                 className="text-lg text-text"
@@ -300,7 +300,7 @@ export default function Home() {
               >
                 소프트커버 책
               </h3>
-              <p className="text-3xl font-extrabold mt-3 text-primary">
+              <p className="text-3xl font-extrabold mt-3 text-brand">
                 29,900
                 <span className="text-sm font-normal text-text-light">원</span>
               </p>

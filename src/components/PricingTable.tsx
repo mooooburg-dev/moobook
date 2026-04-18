@@ -1,4 +1,4 @@
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import type { OrderTier } from "@/types";
 
 interface PricingTableProps {
@@ -18,8 +18,8 @@ const tiers = [
       "무료 배송 (3~5일)",
     ],
     popular: true,
-    borderColor: "border-primary",
-    checkColor: "text-primary",
+    borderColor: "border-brand",
+    checkColor: "text-brand",
   },
 ];
 
@@ -48,7 +48,7 @@ export default function PricingTable({ onSelect }: PricingTableProps) {
 
           <div className="my-4">
             <span
-              className={`text-3xl ${tier.popular ? "text-primary" : "text-text"}`}
+              className={`text-3xl ${tier.popular ? "text-brand" : "text-text"}`}
               style={{ fontFamily: "var(--font-heading)" }}
             >
               {tier.price.toLocaleString()}
@@ -66,7 +66,7 @@ export default function PricingTable({ onSelect }: PricingTableProps) {
           </ul>
 
           <Button
-            variant={tier.popular ? "primary" : "outline"}
+            variant={tier.popular ? "default" : "outline"}
             className="w-full"
             onClick={() => onSelect(tier.id)}
           >

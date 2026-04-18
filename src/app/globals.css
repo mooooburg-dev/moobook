@@ -1,22 +1,83 @@
 @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
   --background: #FFF8F0;
-  --foreground: #3D3D3D;
-  --color-cream: #FFF8F0;
-  --color-peach: #FEF3E2;
-  --color-primary: #FF8C42;
-  --color-primary-dark: #E07830;
-  --color-secondary: #6BCB77;
-  --color-secondary-dark: #55B562;
-  --color-accent-blue: #4D96FF;
-  --color-accent-pink: #FF6B8A;
-  --color-text: #3D3D3D;
-  --color-text-light: #7A7A7A;
-  --color-text-lighter: #A8A8A8;
+  --foreground: #4A3F36;
+  --brand: #FF8C42;
+  --brand-dark: #E07830;
+  --brand-secondary: #6BCB77;
+  --brand-secondary-dark: #55B562;
+  --brand-blue: #4D96FF;
+  --brand-pink: #FF6B8A;
   --font-heading: 'Jua', sans-serif;
   --font-body: 'Noto Sans KR', sans-serif;
+
+  /* shadcn tokens — 브랜드 오렌지(#FF8C42) 기반 톤앤매너 */
+  --radius: 0.625rem;
+  --card: oklch(1 0 0);
+  --card-foreground: #4A3F36;
+  --popover: oklch(1 0 0);
+  --popover-foreground: #4A3F36;
+  --primary: #FF8C42;
+  --primary-foreground: #FFFFFF;
+  --secondary: #FEF3E2;
+  --secondary-foreground: #4A3F36;
+  --muted: #FEF3E2;
+  --muted-foreground: #7A7A7A;
+  --accent: #FFE8D1;
+  --accent-foreground: #4A3F36;
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: #F2E3CC;
+  --input: #F2E3CC;
+  --ring: #FF8C42;
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @theme inline {
@@ -24,17 +85,56 @@
   --color-foreground: var(--foreground);
   --color-cream: #FFF8F0;
   --color-peach: #FEF3E2;
-  --color-primary: #FF8C42;
-  --color-primary-dark: #E07830;
-  --color-secondary: #6BCB77;
-  --color-secondary-dark: #55B562;
-  --color-accent-blue: #4D96FF;
-  --color-accent-pink: #FF6B8A;
-  --color-text: #3D3D3D;
-  --color-text-light: #7A7A7A;
-  --color-text-lighter: #A8A8A8;
+  /* 브랜드 컬러 (랜딩/창작 페이지용) — bg-brand, text-brand-pink 등으로 사용 */
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-secondary-dark: var(--brand-secondary-dark);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-pink: var(--brand-pink);
+  --color-text: #4A3F36;
+  --color-text-light: #8A7A6B;
+  --color-text-lighter: #B5A89A;
   --font-heading: 'Jua', sans-serif;
   --font-body: 'Noto Sans KR', sans-serif;
+
+  /* shadcn tokens */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
 }
 
 body {
@@ -75,9 +175,9 @@ body {
   animation: twinkle 2s ease-in-out infinite;
 }
 
-/* 점선 화살표 */
+/* 점선 화살표 — 브랜드 오렌지를 옅게 */
 .dashed-arrow {
-  border-top: 3px dashed var(--color-primary);
+  border-top: 3px dashed rgba(255, 140, 66, 0.45);
   position: relative;
 }
 
@@ -86,7 +186,7 @@ body {
   position: absolute;
   right: -8px;
   top: -12px;
-  color: var(--color-primary);
+  color: rgba(255, 140, 66, 0.55);
   font-size: 14px;
 }
 

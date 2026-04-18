@@ -2,7 +2,29 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import {
+  ChevronLeft,
+  Loader2,
+  RefreshCcw,
+  Star,
+  StarOff,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
+
 import { scenarios } from "@/lib/scenarios";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import type { ChildGender, ScenarioBackground, ThemeId } from "@/types";
 
 function charImage(bg: ScenarioBackground | undefined, gender: ChildGender) {
@@ -27,13 +49,44 @@ function refUrl(bg: ScenarioBackground | undefined, gender: ChildGender) {
     : bg.reference_image_url_girl;
 }
 
-const statusConfig: Record<string, { label: string; color: string }> = {
-  pending: { label: "대기", color: "bg-gray-100 text-gray-600" },
-  generating: { label: "생성 중", color: "bg-blue-100 text-blue-700 animate-pulse" },
-  completed: { label: "완료", color: "bg-green-100 text-green-700" },
-  approved: { label: "승인됨", color: "bg-emerald-100 text-emerald-700" },
-  rejected: { label: "거부됨", color: "bg-red-100 text-red-700" },
+const statusBadge: Record<
+  string,
+  { label: string; className: string; pulse?: boolean }
+> = {
+  pending: {
+    label: "대기",
+    className: "bg-muted text-muted-foreground hover:bg-muted",
+  },
+  generating: {
+    label: "생성 중",
+    className: "bg-blue-100 text-blue-700 hover:bg-blue-100",
+    pulse: true,
+  },
+  completed: {
+    label: "완료",
+    className: "bg-green-100 text-green-700 hover:bg-green-100",
+  },
+  approved: {
+    label: "승인됨",
+    className: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+  },
+  rejected: {
+    label: "거부됨",
+    className: "bg-red-100 text-red-700 hover:bg-red-100",
+  },
 };
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = statusBadge[status] ?? statusBadge.pending;
+  return (
+    <Badge
+      variant="secondary"
+      className={cn("border-0", cfg.className, cfg.pulse && "animate-pulse")}
+    >
+      {cfg.label}
+    </Badge>
+  );
+}
 
 export default function AdminBackgroundDetailPage() {
   const params = useParams();
@@ -64,9 +117,7 @@ export default function AdminBackgroundDetailPage() {
   }, [scenarioId]);
 
   const hasGenerating = backgrounds.some(
-    (b) =>
-      b.status === "generating" ||
-      charStatus(b, gender) === "generating"
+    (b) => b.status === "generating" || charStatus(b, gender) === "generating"
   );
 
   const totalPages = scenario?.pageCount ?? 0;
@@ -117,7 +168,7 @@ export default function AdminBackgroundDetailPage() {
 
   if (!scenario) {
     return (
-      <div className="text-gray-500">존재하지 않는 시나리오입니다.</div>
+      <div className="text-muted-foreground">존재하지 않는 시나리오입니다.</div>
     );
   }
 
@@ -146,7 +197,7 @@ export default function AdminBackgroundDetailPage() {
       if (res.ok) {
         await fetchBackgrounds();
       } else {
-        alert("작업 실패");
+        toast.error("작업 실패");
       }
     } finally {
       setActionLoading(null);
@@ -155,7 +206,7 @@ export default function AdminBackgroundDetailPage() {
 
   async function handleGenerateFirstPageCharacter() {
     if (firstPageBg?.status !== "approved") {
-      alert("1페이지 배경이 승인되어야 해요.");
+      toast.warning("1페이지 배경이 승인되어야 해요.");
       return;
     }
     setActionLoading(1);
@@ -166,7 +217,7 @@ export default function AdminBackgroundDetailPage() {
         body: JSON.stringify({ scenarioId, pageNumbers: [1], gender }),
       });
       if (!res.ok) {
-        alert("1페이지 생성 요청 실패");
+        toast.error("1페이지 생성 요청 실패");
         return;
       }
       setBackgrounds((prev) =>
@@ -194,7 +245,7 @@ export default function AdminBackgroundDetailPage() {
 
   async function handleGenerateRestCharacters() {
     if (!referenceUrl) {
-      alert(
+      toast.warning(
         "레퍼런스가 설정되지 않았어요. 1페이지 캐릭터를 먼저 생성하고 레퍼런스로 설정해 주세요."
       );
       return;
@@ -209,18 +260,17 @@ export default function AdminBackgroundDetailPage() {
       .map((b) => b.page_number);
 
     if (targets.length === 0) {
-      alert("생성 대상 페이지가 없어요.");
+      toast.info("생성 대상 페이지가 없어요.");
       return;
     }
 
-    // 테스트 단계: 2~3페이지만
     const testTargets = targets.filter((n) => n === 2 || n === 3);
     const willRun = testTargets.length > 0 ? testTargets : targets;
 
     const msg =
       testTargets.length > 0
-        ? `테스트 모드: 2~3페이지(${testTargets.join(", ")})를 레퍼런스 기반으로 생성합니다.\n계속하시겠습니까?`
-        : `${willRun.length}페이지를 레퍼런스 기반으로 생성합니다.\n계속하시겠습니까?`;
+        ? `테스트 모드: 2~3페이지(${testTargets.join(", ")})를 레퍼런스 기반으로 생성합니다. 계속할까요?`
+        : `${willRun.length}페이지를 레퍼런스 기반으로 생성합니다. 계속할까요?`;
 
     if (!confirm(msg)) return;
 
@@ -233,7 +283,7 @@ export default function AdminBackgroundDetailPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        alert(data?.error ?? "캐릭터 생성 요청 실패");
+        toast.error(data?.error ?? "캐릭터 생성 요청 실패");
         return;
       }
       setBackgrounds((prev) =>
@@ -269,7 +319,7 @@ export default function AdminBackgroundDetailPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        alert(data?.error ?? "레퍼런스 설정 실패");
+        toast.error(data?.error ?? "레퍼런스 설정 실패");
         return;
       }
       await fetchBackgrounds();
@@ -279,7 +329,9 @@ export default function AdminBackgroundDetailPage() {
   }
 
   async function handleClearReference() {
-    if (!confirm("레퍼런스를 해제하면 2페이지 이후 생성이 차단됩니다.\n계속할까요?")) {
+    if (
+      !confirm("레퍼런스를 해제하면 2페이지 이후 생성이 차단됩니다. 계속할까요?")
+    ) {
       return;
     }
     setActionLoading(1);
@@ -289,7 +341,7 @@ export default function AdminBackgroundDetailPage() {
         { method: "DELETE" }
       );
       if (!res.ok) {
-        alert("레퍼런스 해제 실패");
+        toast.error("레퍼런스 해제 실패");
         return;
       }
       await fetchBackgrounds();
@@ -300,7 +352,7 @@ export default function AdminBackgroundDetailPage() {
 
   async function handleRegenerateCharacter(pageNumber: number) {
     if (pageNumber !== 1 && !referenceUrl) {
-      alert(
+      toast.warning(
         "레퍼런스가 설정되지 않았어요. 1페이지 캐릭터를 먼저 생성하고 레퍼런스로 설정해 주세요."
       );
       return;
@@ -324,7 +376,7 @@ export default function AdminBackgroundDetailPage() {
         body: JSON.stringify({ scenarioId, pageNumbers: [pageNumber], gender }),
       });
       if (!res.ok) {
-        alert("재생성 요청 실패");
+        toast.error("재생성 요청 실패");
         return;
       }
       setBackgrounds((prev) =>
@@ -353,7 +405,7 @@ export default function AdminBackgroundDetailPage() {
   async function handleRegenerateAll() {
     if (
       !confirm(
-        `[${scenario.title}] 12페이지 전체를 삭제하고 다시 생성합니다.\n계속하시겠습니까?`
+        `[${scenario.title}] 12페이지 전체를 삭제하고 다시 생성합니다. 계속할까요?`
       )
     ) {
       return;
@@ -361,24 +413,22 @@ export default function AdminBackgroundDetailPage() {
 
     setRegenAllLoading(true);
     try {
-      // 1. 기존 레코드 전체 삭제
       const delRes = await fetch(
         `/api/admin/backgrounds?scenarioId=${scenarioId}`,
         { method: "DELETE" }
       );
       if (!delRes.ok) {
-        alert("기존 데이터 삭제 실패");
+        toast.error("기존 데이터 삭제 실패");
         return;
       }
 
-      // 2. 생성 시작
       const genRes = await fetch("/api/admin/generate-backgrounds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scenarioId }),
       });
       if (!genRes.ok) {
-        alert("생성 시작 실패");
+        toast.error("생성 시작 실패");
         return;
       }
 
@@ -391,7 +441,6 @@ export default function AdminBackgroundDetailPage() {
   async function handleRegenerate(pageNumber: number) {
     setActionLoading(pageNumber);
     try {
-      // 해당 페이지를 pending으로 리셋한 후 생성 트리거
       await fetch("/api/admin/backgrounds", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -404,7 +453,7 @@ export default function AdminBackgroundDetailPage() {
         body: JSON.stringify({ scenarioId }),
       });
       if (!res.ok) {
-        alert("재생성 요청 실패");
+        toast.error("재생성 요청 실패");
       }
       await fetchBackgrounds();
     } finally {
@@ -413,62 +462,46 @@ export default function AdminBackgroundDetailPage() {
   }
 
   return (
-    <div>
-      {/* 헤더 */}
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <div>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div className="space-y-2">
           <button
             onClick={() => router.push(`/admin/scenarios/${scenarioId}`)}
-            className="text-sm text-gray-500 hover:text-gray-700 mb-2 inline-block"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
-            &larr; 목록으로
+            <ChevronLeft className="size-4" />
+            목록으로
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">{scenario.title}</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {scenarioId} · {scenario.pageCount}페이지
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {scenario.title}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {scenarioId} · {scenario.pageCount}페이지
+            </p>
+          </div>
         </div>
+
         <div className="flex gap-2">
           {tab === "background" ? (
-            <button
+            <Button
+              variant="destructive"
               onClick={handleRegenerateAll}
               disabled={regenAllLoading || hasGenerating}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
               {(regenAllLoading || hasGenerating) && (
-                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Loader2 className="size-4 animate-spin" />
               )}
               {regenAllLoading
                 ? "시작하는 중..."
                 : hasGenerating
                   ? "생성 중..."
                   : "배경 전체 재생성"}
-            </button>
+            </Button>
           ) : (
-            <div className="flex gap-2 items-center">
-              <div className="inline-flex rounded-md border border-gray-300 overflow-hidden mr-1">
-                <button
-                  onClick={() => setGender("boy")}
-                  className={`px-3 py-1.5 text-sm ${
-                    gender === "boy"
-                      ? "bg-blue-600 text-white"
-                      : "bg-white text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  👦 남아
-                </button>
-                <button
-                  onClick={() => setGender("girl")}
-                  className={`px-3 py-1.5 text-sm ${
-                    gender === "girl"
-                      ? "bg-pink-500 text-white"
-                      : "bg-white text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  👧 여아
-                </button>
-              </div>
-              <button
+            <>
+              <GenderToggle value={gender} onChange={setGender} />
+              <Button
                 onClick={handleGenerateFirstPageCharacter}
                 disabled={
                   !!actionLoading ||
@@ -481,14 +514,14 @@ export default function AdminBackgroundDetailPage() {
                     ? "1페이지는 이미 완료됨"
                     : "1페이지 캐릭터 생성"
                 }
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="bg-amber-500 text-white hover:bg-amber-600"
               >
                 {actionLoading === 1 && (
-                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Loader2 className="size-4 animate-spin" />
                 )}
                 1페이지 생성
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleGenerateRestCharacters}
                 disabled={charAllLoading || hasGenerating || !referenceUrl}
                 title={
@@ -496,429 +529,479 @@ export default function AdminBackgroundDetailPage() {
                     ? "레퍼런스를 먼저 설정해 주세요"
                     : "2페이지 이후 레퍼런스 기반 일괄 생성"
                 }
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="bg-indigo-600 text-white hover:bg-indigo-700"
               >
                 {(charAllLoading || hasGenerating) && (
-                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <Loader2 className="size-4 animate-spin" />
                 )}
                 {charAllLoading
                   ? "시작하는 중..."
                   : hasGenerating
                     ? "합성 중..."
                     : "2p~ 일괄 합성"}
-              </button>
-            </div>
+              </Button>
+            </>
           )}
         </div>
       </div>
 
-      {/* 탭 */}
-      <div className="mb-4 inline-flex rounded-md border border-gray-300 overflow-hidden">
-        <button
-          onClick={() => setTab("background")}
-          className={`px-4 py-1.5 text-sm ${
-            tab === "background"
-              ? "bg-gray-900 text-white"
-              : "bg-white text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          배경
-        </button>
-        <button
-          onClick={() => setTab("character")}
-          className={`px-4 py-1.5 text-sm ${
-            tab === "character"
-              ? "bg-gray-900 text-white"
-              : "bg-white text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          캐릭터 합성
-        </button>
-      </div>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as "background" | "character")}
+      >
+        <TabsList>
+          <TabsTrigger value="background">배경</TabsTrigger>
+          <TabsTrigger value="character">캐릭터 합성</TabsTrigger>
+        </TabsList>
 
-      {/* 진행률 패널 */}
-      {tab === "background" ? (
-        <ProgressPanel
-          label="배경 생성 진행률"
-          completed={bgStats.completed}
-          total={totalPages}
-          approved={bgStats.approved}
-          generating={bgStats.generating}
-          failed={bgStats.failed}
-          isRunning={hasGenerating}
-          etaSecondsPerPage={60}
-          accentClass="bg-blue-500"
-        />
-      ) : (
-        <>
-          <div
-            className={`mb-3 rounded-md border px-3 py-2 text-xs flex items-center gap-2 ${
-              referenceUrl
-                ? "bg-amber-50 border-amber-200 text-amber-800"
-                : "bg-gray-50 border-gray-200 text-gray-600"
-            }`}
-          >
-            <span className="text-base">⭐</span>
-            {referenceUrl ? (
-              <span>
-                레퍼런스 설정됨 — 2페이지 이후는 이 이미지를 기준으로 생성돼요.
-              </span>
-            ) : (
-              <span>
-                레퍼런스 미설정 — 1페이지 캐릭터를 먼저 생성한 뒤
-                &quot;레퍼런스로 설정&quot; 버튼을 눌러 주세요.
-              </span>
-            )}
-          </div>
+        <TabsContent value="background" className="mt-4 flex flex-col gap-6">
           <ProgressPanel
-          label="캐릭터 합성 진행률"
-          completed={charStats.completed}
-          total={charDenom}
-          approved={charStats.approved}
-          generating={charStats.generating}
-          failed={charStats.failed}
-          isRunning={hasGenerating}
-          etaSecondsPerPage={45}
-          accentClass="bg-indigo-500"
-          emptyHint={
-            charDenom === 0
-              ? "승인된 배경이 없어요. 배경을 먼저 승인해 주세요."
-              : undefined
-          }
-        />
-        </>
-      )}
+            label="배경 생성 진행률"
+            completed={bgStats.completed}
+            total={totalPages}
+            approved={bgStats.approved}
+            generating={bgStats.generating}
+            failed={bgStats.failed}
+            isRunning={hasGenerating}
+            etaSecondsPerPage={60}
+            accentClass="bg-blue-500"
+          />
 
-      {loading ? (
-        <div className="text-gray-400">로딩 중...</div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {scenario.pages.map((page) => {
-            const bg = getBackground(page.pageNumber);
-            const isLoading = actionLoading === page.pageNumber;
+          {loading ? (
+            <div className="text-muted-foreground inline-flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin" /> 로딩 중...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {scenario.pages.map((page) => {
+                const bg = getBackground(page.pageNumber);
+                const isLoading = actionLoading === page.pageNumber;
+                const status = bg?.status ?? "pending";
+                const hasImage = bg?.image_url && status !== "pending";
 
-            if (tab === "background") {
-              const status = bg?.status ?? "pending";
-              const config = statusConfig[status];
-              const hasImage = bg?.image_url && status !== "pending";
-
-              return (
-                <div
-                  key={page.pageNumber}
-                  className="bg-white rounded-lg border border-gray-200 overflow-hidden"
-                >
-                  <div
-                    className={`relative aspect-3/4 bg-gray-50 ${
-                      hasImage ? "cursor-pointer" : ""
-                    }`}
-                    onClick={() =>
-                      hasImage && bg?.image_url && setModalImage(bg.image_url)
-                    }
-                  >
-                    {hasImage && bg?.image_url ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={bg.image_url}
-                        alt={`Page ${page.pageNumber}`}
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-gray-300 text-sm">
-                        {status === "generating" ? (
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                            <span>생성 중...</span>
-                          </div>
-                        ) : (
-                          "미생성"
-                        )}
-                      </div>
-                    )}
-                    <div className="absolute top-2 left-2 bg-black/60 text-white text-xs font-medium px-2 py-1 rounded">
-                      P{page.pageNumber}
-                    </div>
-                    <div className="absolute top-2 right-2">
-                      <span
-                        className={`text-xs font-medium px-2 py-1 rounded-full ${config.color}`}
-                      >
-                        {config.label}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-3">
-                    <p className="text-xs text-gray-600 line-clamp-2 mb-3">
-                      {page.sceneDescription}
-                    </p>
-                    {(status === "completed" || status === "rejected") && (
-                      <div className="flex gap-2">
-                        {status === "completed" && (
-                          <button
-                            onClick={() =>
-                              handleAction(page.pageNumber, "approve")
-                            }
-                            disabled={isLoading}
-                            className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                          >
-                            승인
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleRegenerate(page.pageNumber)}
-                          disabled={isLoading}
-                          className="flex-1 px-2 py-1.5 text-xs font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                        >
-                          재생성
-                        </button>
-                      </div>
-                    )}
-                    {status === "approved" && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleRegenerate(page.pageNumber)}
-                          disabled={isLoading}
-                          className="flex-1 px-2 py-1.5 text-xs font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                        >
-                          재생성
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            }
-
-            // character 탭
-            const bgApproved = bg?.status === "approved";
-            const charStatusVal = charStatus(bg, gender);
-            const charImageUrl = charImage(bg, gender);
-            const charConfig = statusConfig[charStatusVal];
-            const hasChar =
-              !!charImageUrl && charStatusVal !== "pending";
-
-            return (
-              <div
-                key={page.pageNumber}
-                className="bg-white rounded-lg border border-gray-200 overflow-hidden"
-              >
-                {/* 배경 vs 캐릭터 합성 나란히 */}
-                <div className="grid grid-cols-2 gap-px bg-gray-200">
-                  <div
-                    className="relative aspect-3/4 bg-gray-50 cursor-pointer"
-                    onClick={() =>
-                      bg?.image_url && setModalImage(bg.image_url)
-                    }
-                  >
-                    {bg?.image_url ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={bg.image_url}
-                        alt={`Background p${page.pageNumber}`}
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-gray-300 text-xs">
-                        배경 없음
-                      </div>
-                    )}
-                    <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
-                      배경
-                    </div>
-                  </div>
-
-                  <div
-                    className={`relative aspect-3/4 bg-gray-50 overflow-hidden ${
-                      hasChar ? "cursor-pointer" : ""
-                    }`}
-                    onClick={() =>
-                      hasChar && charImageUrl && setModalImage(charImageUrl)
-                    }
-                  >
-                    {hasChar && charImageUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        key={charImageUrl}
-                        src={charImageUrl}
-                        alt={`Character p${page.pageNumber}`}
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
-                    ) : charStatusVal === "generating" && bg?.image_url ? (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                return (
+                  <Card key={page.pageNumber} className="overflow-hidden p-0 gap-0">
+                    <div
+                      className={cn(
+                        "relative aspect-3/4 bg-muted",
+                        hasImage && "cursor-pointer"
+                      )}
+                      onClick={() =>
+                        hasImage &&
+                        bg?.image_url &&
+                        setModalImage(bg.image_url)
+                      }
+                    >
+                      {hasImage && bg?.image_url ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img
                           src={bg.image_url}
-                          alt={`Background p${page.pageNumber}`}
-                          className="absolute inset-0 w-full h-full object-cover scale-105 blur-sm brightness-75"
+                          alt={`Page ${page.pageNumber}`}
+                          className="absolute inset-0 w-full h-full object-cover"
                         />
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white">
-                          <div className="w-7 h-7 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span className="text-xs font-medium drop-shadow">
-                            캐릭터 합성 중
-                          </span>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-muted-foreground/60 text-sm">
+                          {status === "generating" ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <Loader2 className="size-6 animate-spin text-blue-500" />
+                              <span>생성 중...</span>
+                            </div>
+                          ) : (
+                            "미생성"
+                          )}
                         </div>
-                        <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
-                          <div className="h-full w-full bg-indigo-400/80 animate-pulse" />
+                      )}
+                      <div className="absolute top-2 left-2 bg-black/60 text-white text-xs font-medium px-2 py-1 rounded">
+                        P{page.pageNumber}
+                      </div>
+                      <div className="absolute top-2 right-2">
+                        <StatusBadge status={status} />
+                      </div>
+                    </div>
+
+                    <div className="p-3 flex flex-col gap-3">
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {page.sceneDescription}
+                      </p>
+                      {(status === "completed" || status === "rejected") && (
+                        <div className="flex gap-2">
+                          {status === "completed" && (
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                handleAction(page.pageNumber, "approve")
+                              }
+                              disabled={isLoading}
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              승인
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRegenerate(page.pageNumber)}
+                            disabled={isLoading}
+                            className="flex-1"
+                          >
+                            <RefreshCcw className="size-3.5" />
+                            재생성
+                          </Button>
                         </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-gray-300 text-xs">
-                        {charStatusVal === "generating" ? (
-                          <div className="flex flex-col items-center gap-1">
-                            <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                            <span>생성 중</span>
-                          </div>
+                      )}
+                      {status === "approved" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRegenerate(page.pageNumber)}
+                          disabled={isLoading}
+                          className="w-full"
+                        >
+                          <RefreshCcw className="size-3.5" />
+                          재생성
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="character" className="mt-4 flex flex-col gap-6">
+          <Card
+            className={cn(
+              "py-3 border",
+              referenceUrl
+                ? "bg-amber-50 border-amber-200"
+                : "bg-muted/50"
+            )}
+          >
+            <CardContent className="flex items-center gap-2 text-xs">
+              <Star
+                className={cn(
+                  "size-4",
+                  referenceUrl ? "text-amber-500 fill-amber-500" : "text-muted-foreground"
+                )}
+              />
+              {referenceUrl ? (
+                <span className="text-amber-800">
+                  레퍼런스 설정됨 — 2페이지 이후는 이 이미지를 기준으로 생성돼요.
+                </span>
+              ) : (
+                <span className="text-muted-foreground">
+                  레퍼런스 미설정 — 1페이지 캐릭터를 먼저 생성한 뒤 &quot;레퍼런스로 설정&quot; 버튼을 눌러 주세요.
+                </span>
+              )}
+            </CardContent>
+          </Card>
+
+          <ProgressPanel
+            label="캐릭터 합성 진행률"
+            completed={charStats.completed}
+            total={charDenom}
+            approved={charStats.approved}
+            generating={charStats.generating}
+            failed={charStats.failed}
+            isRunning={hasGenerating}
+            etaSecondsPerPage={45}
+            accentClass="bg-indigo-500"
+            emptyHint={
+              charDenom === 0
+                ? "승인된 배경이 없어요. 배경을 먼저 승인해 주세요."
+                : undefined
+            }
+          />
+
+          {loading ? (
+            <div className="text-muted-foreground inline-flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin" /> 로딩 중...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {scenario.pages.map((page) => {
+                const bg = getBackground(page.pageNumber);
+                const isLoading = actionLoading === page.pageNumber;
+                const bgApproved = bg?.status === "approved";
+                const charStatusVal = charStatus(bg, gender);
+                const charImageUrl = charImage(bg, gender);
+                const hasChar = !!charImageUrl && charStatusVal !== "pending";
+
+                return (
+                  <Card key={page.pageNumber} className="overflow-hidden p-0 gap-0">
+                    <div className="grid grid-cols-2 gap-px bg-border">
+                      <div
+                        className="relative aspect-3/4 bg-muted cursor-pointer"
+                        onClick={() =>
+                          bg?.image_url && setModalImage(bg.image_url)
+                        }
+                      >
+                        {bg?.image_url ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={bg.image_url}
+                            alt={`Background p${page.pageNumber}`}
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
                         ) : (
-                          "미생성"
+                          <div className="flex items-center justify-center h-full text-muted-foreground/60 text-xs">
+                            배경 없음
+                          </div>
+                        )}
+                        <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
+                          배경
+                        </div>
+                      </div>
+
+                      <div
+                        className={cn(
+                          "relative aspect-3/4 bg-muted overflow-hidden",
+                          hasChar && "cursor-pointer"
+                        )}
+                        onClick={() =>
+                          hasChar &&
+                          charImageUrl &&
+                          setModalImage(charImageUrl)
+                        }
+                      >
+                        {hasChar && charImageUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            key={charImageUrl}
+                            src={charImageUrl}
+                            alt={`Character p${page.pageNumber}`}
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                        ) : charStatusVal === "generating" && bg?.image_url ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={bg.image_url}
+                              alt={`Background p${page.pageNumber}`}
+                              className="absolute inset-0 w-full h-full object-cover scale-105 blur-sm brightness-75"
+                            />
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white">
+                              <Loader2 className="size-7 animate-spin" />
+                              <span className="text-xs font-medium drop-shadow">
+                                캐릭터 합성 중
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-muted-foreground/60 text-xs">
+                            {charStatusVal === "generating" ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <Loader2 className="size-5 animate-spin text-indigo-500" />
+                                <span>생성 중</span>
+                              </div>
+                            ) : (
+                              "미생성"
+                            )}
+                          </div>
+                        )}
+                        <div className="absolute top-1 left-1 bg-indigo-600/80 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
+                          캐릭터
+                        </div>
+                        {page.pageNumber === 1 && referenceUrl && (
+                          <div
+                            className="absolute top-1 right-1 inline-flex items-center gap-0.5 bg-amber-400 text-amber-900 text-[10px] font-bold px-1.5 py-0.5 rounded shadow"
+                            title="이 이미지가 2p~ 생성의 레퍼런스로 사용돼요"
+                          >
+                            <Star className="size-3 fill-amber-900" />
+                            REF
+                          </div>
                         )}
                       </div>
-                    )}
-                    <div className="absolute top-1 left-1 bg-indigo-600/80 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
-                      캐릭터
                     </div>
-                    {page.pageNumber === 1 && referenceUrl && (
-                      <div
-                        className="absolute top-1 right-1 bg-amber-400 text-amber-900 text-[11px] font-bold px-1.5 py-0.5 rounded shadow"
-                        title="이 이미지가 2p~ 생성의 레퍼런스로 사용돼요"
-                      >
-                        ⭐ REF
+
+                    <div className="p-3 flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-medium">
+                          P{page.pageNumber}
+                        </div>
+                        <StatusBadge status={charStatusVal} />
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs font-medium text-gray-700">
-                      P{page.pageNumber}
-                    </div>
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${charConfig.color}`}
-                    >
-                      {charConfig.label}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 line-clamp-2 mb-3">
-                    {page.sceneDescription}
-                  </p>
-
-                  {!bgApproved && (
-                    <p className="text-[11px] text-amber-600 mb-2">
-                      배경이 승인되어야 캐릭터를 생성할 수 있어요.
-                    </p>
-                  )}
-
-                  {page.pageNumber !== 1 &&
-                    bgApproved &&
-                    !referenceUrl &&
-                    charStatusVal !== "generating" && (
-                      <p className="text-[11px] text-amber-600 mb-2">
-                        레퍼런스가 설정되어야 이 페이지를 생성할 수 있어요.
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {page.sceneDescription}
                       </p>
-                    )}
 
-                  {bgApproved && charStatusVal === "pending" && (
-                    <button
-                      onClick={() => handleRegenerateCharacter(page.pageNumber)}
-                      disabled={
-                        isLoading ||
-                        (page.pageNumber !== 1 && !referenceUrl)
-                      }
-                      className="w-full px-2 py-1.5 text-xs font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                    >
-                      캐릭터 생성
-                    </button>
-                  )}
-
-                  {/* 1페이지 전용: 레퍼런스 설정 / 해제 */}
-                  {page.pageNumber === 1 && firstPageCharReady && (
-                    <div className="mt-2">
-                      {referenceUrl ? (
-                        <button
-                          onClick={handleClearReference}
-                          disabled={isLoading}
-                          className="w-full px-2 py-1.5 text-xs font-medium rounded border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 transition-colors"
-                        >
-                          ⭐ 레퍼런스 해제
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleSetReference}
-                          disabled={isLoading}
-                          className="w-full px-2 py-1.5 text-xs font-medium rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
-                        >
-                          ⭐ 레퍼런스로 설정
-                        </button>
+                      {!bgApproved && (
+                        <p className="text-[11px] text-amber-600">
+                          배경이 승인되어야 캐릭터를 생성할 수 있어요.
+                        </p>
                       )}
-                    </div>
-                  )}
 
-                  {(charStatusVal === "completed" ||
-                    charStatusVal === "rejected") && (
-                    <div className="flex gap-2">
-                      {charStatusVal === "completed" && (
-                        <button
+                      {page.pageNumber !== 1 &&
+                        bgApproved &&
+                        !referenceUrl &&
+                        charStatusVal !== "generating" && (
+                          <p className="text-[11px] text-amber-600">
+                            레퍼런스가 설정되어야 이 페이지를 생성할 수 있어요.
+                          </p>
+                        )}
+
+                      {bgApproved && charStatusVal === "pending" && (
+                        <Button
+                          size="sm"
                           onClick={() =>
-                            handleAction(
-                              page.pageNumber,
-                              "approve",
-                              "character"
-                            )
+                            handleRegenerateCharacter(page.pageNumber)
                           }
-                          disabled={isLoading}
-                          className="flex-1 px-2 py-1.5 text-xs font-medium rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                          disabled={
+                            isLoading ||
+                            (page.pageNumber !== 1 && !referenceUrl)
+                          }
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
                         >
-                          승인
-                        </button>
+                          캐릭터 생성
+                        </Button>
                       )}
-                      <button
-                        onClick={() => handleRegenerateCharacter(page.pageNumber)}
-                        disabled={isLoading || !bgApproved}
-                        className="flex-1 px-2 py-1.5 text-xs font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                      >
-                        재생성
-                      </button>
+
+                      {page.pageNumber === 1 && firstPageCharReady && (
+                        <>
+                          {referenceUrl ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleClearReference}
+                              disabled={isLoading}
+                              className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                            >
+                              <StarOff className="size-3.5" />
+                              레퍼런스 해제
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={handleSetReference}
+                              disabled={isLoading}
+                              className="bg-amber-500 hover:bg-amber-600 text-white"
+                            >
+                              <Star className="size-3.5" />
+                              레퍼런스로 설정
+                            </Button>
+                          )}
+                        </>
+                      )}
+
+                      {(charStatusVal === "completed" ||
+                        charStatusVal === "rejected") && (
+                        <div className="flex gap-2">
+                          {charStatusVal === "completed" && (
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                handleAction(
+                                  page.pageNumber,
+                                  "approve",
+                                  "character"
+                                )
+                              }
+                              disabled={isLoading}
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              승인
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              handleRegenerateCharacter(page.pageNumber)
+                            }
+                            disabled={isLoading || !bgApproved}
+                            className="flex-1"
+                          >
+                            <RefreshCcw className="size-3.5" />
+                            재생성
+                          </Button>
+                        </div>
+                      )}
+
+                      {charStatusVal === "approved" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            handleRegenerateCharacter(page.pageNumber)
+                          }
+                          disabled={isLoading || !bgApproved}
+                          className="w-full"
+                        >
+                          <RefreshCcw className="size-3.5" />
+                          재생성
+                        </Button>
+                      )}
                     </div>
-                  )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
-                  {charStatusVal === "approved" && (
-                    <button
-                      onClick={() => handleRegenerateCharacter(page.pageNumber)}
-                      disabled={isLoading || !bgApproved}
-                      className="w-full px-2 py-1.5 text-xs font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                    >
-                      재생성
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 이미지 모달 */}
-      {modalImage && (
-        <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-8"
-          onClick={() => setModalImage(null)}
+      <Dialog
+        open={!!modalImage}
+        onOpenChange={(open) => !open && setModalImage(null)}
+      >
+        <DialogContent
+          className="max-w-3xl p-2 bg-transparent border-0 shadow-none"
+          showCloseButton={false}
         >
-          <div className="relative max-w-3xl max-h-full">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={modalImage}
-              alt="원본 이미지"
-              className="rounded-lg object-contain max-h-[90vh] w-auto"
-              onClick={(e) => e.stopPropagation()}
-            />
-            <button
-              onClick={() => setModalImage(null)}
-              className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-600 hover:text-gray-900"
-            >
-              &times;
-            </button>
-          </div>
-        </div>
-      )}
+          {modalImage && (
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={modalImage}
+                alt="원본 이미지"
+                className="rounded-lg object-contain max-h-[85vh] w-auto mx-auto"
+              />
+              <button
+                onClick={() => setModalImage(null)}
+                className="absolute -top-3 -right-3 size-8 bg-white rounded-full shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function GenderToggle({
+  value,
+  onChange,
+}: {
+  value: ChildGender;
+  onChange: (g: ChildGender) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-md border bg-background overflow-hidden">
+      <button
+        onClick={() => onChange("boy")}
+        className={cn(
+          "px-3 text-sm font-medium transition-colors cursor-pointer",
+          value === "boy"
+            ? "bg-blue-600 text-white"
+            : "text-foreground hover:bg-muted"
+        )}
+      >
+        👦 남아
+      </button>
+      <button
+        onClick={() => onChange("girl")}
+        className={cn(
+          "px-3 text-sm font-medium transition-colors cursor-pointer",
+          value === "girl"
+            ? "bg-pink-500 text-white"
+            : "text-foreground hover:bg-muted"
+        )}
+      >
+        👧 여아
+      </button>
     </div>
   );
 }
@@ -951,68 +1034,58 @@ function ProgressPanel({
   const etaMinutes = Math.ceil((remaining * etaSecondsPerPage) / 60);
 
   return (
-    <div className="mb-6 bg-white rounded-lg border border-gray-200 p-4">
-      <div className="flex items-center justify-between gap-4 mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-700">{label}</span>
-          {isRunning && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-blue-600">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-              진행 중
+    <Card className="py-4 gap-3">
+      <CardHeader className="px-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-sm">{label}</CardTitle>
+            {isRunning && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-blue-600">
+                <span className="size-2 rounded-full bg-blue-500 animate-pulse" />
+                진행 중
+              </span>
+            )}
+          </div>
+          <div className="text-sm tabular-nums">
+            <span className="font-semibold">{completed}</span>
+            <span className="text-muted-foreground"> / {total}</span>
+            <span className="ml-2 text-muted-foreground">({percent}%)</span>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="px-4 flex flex-col gap-3">
+        <Progress
+          value={percent}
+          className="h-2"
+          indicatorClassName={accentClass}
+        />
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-emerald-500" />
+            승인 {approved}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-green-500" />
+            완료 {completed - approved}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-blue-500 animate-pulse" />
+            생성 중 {generating}
+          </span>
+          {failed > 0 && (
+            <span className="inline-flex items-center gap-1.5 text-red-600">
+              <span className="size-2 rounded-full bg-red-500" />
+              실패 {failed}
             </span>
           )}
+          {isRunning && remaining > 0 && (
+            <span className="ml-auto">남은 시간 약 {etaMinutes}분</span>
+          )}
+          {!isRunning && emptyHint && (
+            <span className="ml-auto text-amber-600">{emptyHint}</span>
+          )}
         </div>
-        <div className="text-sm tabular-nums text-gray-700">
-          <span className="font-semibold">{completed}</span>
-          <span className="text-gray-400"> / {total}</span>
-          <span className="ml-2 text-gray-500">({percent}%)</span>
-        </div>
-      </div>
-
-      <div className="relative h-2 w-full rounded-full bg-gray-100 overflow-hidden">
-        <div
-          className={`absolute inset-y-0 left-0 ${accentClass} transition-all duration-500 ease-out`}
-          style={{ width: `${percent}%` }}
-        />
-        {isRunning && (
-          <div
-            className="absolute inset-y-0 bg-white/40 animate-pulse"
-            style={{
-              left: `${percent}%`,
-              width: total > 0 ? `${(1 / total) * 100}%` : "0%",
-            }}
-          />
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-600">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          승인 {approved}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          완료 {completed - approved}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-          생성 중 {generating}
-        </span>
-        {failed > 0 && (
-          <span className="inline-flex items-center gap-1.5 text-red-600">
-            <span className="w-2 h-2 rounded-full bg-red-500" />
-            실패 {failed}
-          </span>
-        )}
-        {isRunning && remaining > 0 && (
-          <span className="ml-auto text-gray-400">
-            남은 시간 약 {etaMinutes}분
-          </span>
-        )}
-        {!isRunning && emptyHint && (
-          <span className="ml-auto text-amber-600">{emptyHint}</span>
-        )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

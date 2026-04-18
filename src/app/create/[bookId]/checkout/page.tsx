@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import PricingTable from "@/components/PricingTable";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import type { OrderTier } from "@/types";
 
 export default function CheckoutPage() {

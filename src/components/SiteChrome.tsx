@@ -7,10 +7,10 @@ function Logo() {
   return (
     <Link
       href="/"
-      className="group flex items-center gap-2 text-xl text-primary hover:opacity-90 transition-opacity"
+      className="group flex items-center gap-2 text-xl text-brand hover:opacity-90 transition-opacity"
       style={{ fontFamily: 'var(--font-heading)' }}
     >
-      <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-full bg-linear-to-br from-primary to-accent-pink shadow-[0_2px_8px_rgba(255,140,66,0.35)] group-hover:-rotate-6 transition-transform duration-300">
+      <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-full bg-linear-to-br from-brand to-brand-pink shadow-[0_2px_8px_rgba(255,140,66,0.35)] group-hover:-rotate-6 transition-transform duration-300">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -29,12 +29,12 @@ function Logo() {
           />
         </svg>
         <span
-          className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-secondary animate-twinkle"
+          className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-brand-secondary animate-twinkle"
           aria-hidden="true"
         />
       </span>
       <span className="leading-none tracking-tight">
-        무<span className="text-accent-pink">북</span>
+        무<span className="text-brand-pink">북</span>
       </span>
     </Link>
   );
@@ -45,12 +45,12 @@ export function SiteHeader() {
   if (pathname?.startsWith('/admin')) return null;
 
   return (
-    <header className="bg-cream/80 backdrop-blur-sm sticky top-0 z-50 border-b border-primary/10">
+    <header className="bg-cream/80 backdrop-blur-sm sticky top-0 z-50 border-b border-brand/10">
       <nav className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
         <Logo />
         <Link
           href="/create"
-          className="group inline-flex items-center gap-1.5 text-sm font-bold text-white bg-linear-to-br from-primary to-accent-pink px-4 py-2 rounded-full shadow-[0_4px_12px_rgba(255,140,66,0.35)] hover:shadow-[0_6px_16px_rgba(255,140,66,0.45)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+          className="group inline-flex items-center gap-1.5 text-sm font-bold text-white bg-linear-to-br from-brand to-brand-pink px-4 py-2 rounded-full shadow-[0_4px_12px_rgba(255,140,66,0.35)] hover:shadow-[0_6px_16px_rgba(255,140,66,0.45)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
         >
           <span className="group-hover:rotate-12 transition-transform duration-300">
             ✨
