@@ -8,9 +8,13 @@ import ScenarioPreviewModal from "./ScenarioPreviewModal";
 interface ThemeSelectorProps {
   selectedTheme: ThemeId | null;
   onSelect: (themeId: ThemeId) => void;
+  onSelectCustom?: () => void;
+  customKeywords?: [string, string, string] | null;
 }
 
-const themeConfig: Record<ThemeId, { emoji: string; bgColor: string; borderColor: string; selectedBg: string }> = {
+type PresetThemeConfigId = Exclude<ThemeId, "custom">;
+
+const themeConfig: Record<PresetThemeConfigId, { emoji: string; bgColor: string; borderColor: string; selectedBg: string }> = {
   "forest-adventure": {
     emoji: "🌳",
     bgColor: "bg-green-50",
@@ -84,6 +88,8 @@ const categoryEmoji: Record<ScenarioCategory, string> = {
 export default function ThemeSelector({
   selectedTheme,
   onSelect,
+  onSelectCustom,
+  customKeywords,
 }: ThemeSelectorProps) {
   const categories = getScenariosByCategory();
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -98,8 +104,66 @@ export default function ThemeSelector({
       .catch(() => {});
   }, []);
 
+  const isCustomSelected = selectedTheme === "custom";
+
   return (
     <div className="space-y-8">
+      {onSelectCustom && (
+        <div>
+          <h3
+            className="text-base text-text-light mb-3 flex items-center gap-2"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            <span>✨</span>
+            <span>우리 아이만의 이야기</span>
+          </h3>
+          <div
+            className={`bg-gradient-to-br from-brand/10 via-white to-brand-secondary/10 rounded-3xl shadow-md p-6 border-2 cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+              isCustomSelected
+                ? "border-brand shadow-lg -translate-y-1"
+                : "border-transparent hover:border-brand/30"
+            }`}
+            onClick={onSelectCustom}
+          >
+            <div className="flex items-center gap-5">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand/20 to-brand-secondary/30 flex items-center justify-center text-5xl shrink-0 shadow-inner">
+                ✨
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3
+                  className="text-lg text-text"
+                  style={{ fontFamily: "var(--font-heading)" }}
+                >
+                  커스텀 만들기
+                </h3>
+                <p className="text-sm text-text-light mt-1">
+                  아이가 좋아하는 키워드 3개로 AI가 즉석에서 만드는 단 하나뿐인 동화
+                </p>
+                {isCustomSelected && customKeywords && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {customKeywords.map((kw, i) => (
+                      <span
+                        key={i}
+                        className="text-xs bg-white rounded-full px-3 py-1 text-brand border border-brand/20"
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {isCustomSelected && (
+                  <div
+                    className="mt-2 text-brand text-sm"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
+                    ✓ 선택됨
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {categories.map(({ category, label, scenarios }) => (
         <div key={category}>
           <h3
@@ -111,7 +175,8 @@ export default function ThemeSelector({
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {scenarios.map((scenario) => {
-              const config = themeConfig[scenario.id];
+              const presetId = scenario.id as PresetThemeConfigId;
+              const config = themeConfig[presetId];
               const isSelected = selectedTheme === scenario.id;
               const thumbnail = thumbnails[scenario.id];
 

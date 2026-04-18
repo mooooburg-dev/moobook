@@ -212,7 +212,9 @@ export async function generatePreviewPages({
   const imageUrls: string[] = [];
   let generated = 0;
 
-  for (const page of previewPages) {
+  // Replicate rate limit($5 미만 크레딧 시 분당 6건)을 피하기 위해 순차 처리 + 페이지 간 sleep.
+  for (let i = 0; i < previewPages.length; i++) {
+    const page = previewPages[i];
     if (DEV_PAGE_LIMIT !== null && generated >= DEV_PAGE_LIMIT) {
       console.log(
         `[DEV] DEV_PAGE_LIMIT(${DEV_PAGE_LIMIT}) 도달, p${page.pageNumber} placeholder`
@@ -222,6 +224,9 @@ export async function generatePreviewPages({
       const url = await generateSinglePage(page, photoUrl, childName, bookId);
       imageUrls.push(url);
       generated++;
+      if (i < previewPages.length - 1) {
+        await sleep(5000);
+      }
     }
   }
 
@@ -247,13 +252,21 @@ export async function generateRemainingPages({
     DEV_PAGE_LIMIT !== null ? Math.min(3, DEV_PAGE_LIMIT) : 0;
   let generated = alreadyGenerated;
 
-  for (const page of remainingPages) {
+  // 프리뷰 3장 직후 이어지는 호출이라 rate limit 리셋을 위해 초반 sleep
+  await sleep(5000);
+
+  for (let i = 0; i < remainingPages.length; i++) {
+    const page = remainingPages[i];
     if (DEV_PAGE_LIMIT !== null && generated >= DEV_PAGE_LIMIT) {
       imageUrls.push(PLACEHOLDER_IMAGE(page.pageNumber));
     } else {
       const url = await generateSinglePage(page, photoUrl, childName, bookId);
       imageUrls.push(url);
       generated++;
+      if (i < remainingPages.length - 1) {
+        // Replicate rate limit 대비. 마지막 페이지 뒤에는 sleep 생략
+        await sleep(5000);
+      }
     }
   }
 

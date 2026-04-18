@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
-import { scenarios } from "@/lib/scenarios";
+import { scenarios, type PresetThemeId } from "@/lib/scenarios";
 import { replaceChildName } from "@/lib/utils/korean-name";
 import {
   Card,
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-import type { ChildGender, ScenarioBackground, ThemeId } from "@/types";
+import type { ChildGender, ScenarioBackground } from "@/types";
 
 const NAME_OPTIONS = ["지환", "서윤", "하윤", "도윤", "시우", "지안", "수아"];
 
@@ -71,7 +71,7 @@ export default function AdminPreviewDetailPage() {
   const params = useParams();
   const router = useRouter();
   const scenarioId = params.scenarioId as string;
-  const scenario = scenarios[scenarioId as ThemeId];
+  const scenario = scenarios[scenarioId as PresetThemeId];
 
   const [backgrounds, setBackgrounds] = useState<ScenarioBackground[]>([]);
   const [loading, setLoading] = useState(true);

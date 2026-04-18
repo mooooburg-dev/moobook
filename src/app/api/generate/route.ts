@@ -3,7 +3,7 @@ import {
   generatePreviewPages,
   generateRemainingPages,
 } from "@/lib/replicate";
-import { getScenario } from "@/lib/scenarios";
+import { resolveScenario } from "@/lib/scenarios";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ThemeId } from "@/types";
 
@@ -24,7 +24,6 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient();
-    const scenario = getScenario(theme);
 
     // book 조회
     const { data: book, error: fetchError } = await supabase
@@ -37,6 +36,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "해당 동화책을 찾을 수 없습니다." },
         { status: 404 }
+      );
+    }
+
+    let scenario;
+    try {
+      scenario = resolveScenario(book);
+    } catch (err) {
+      console.error("시나리오 해석 실패:", err);
+      return NextResponse.json(
+        { error: "시나리오 정보가 누락되어 생성을 시작할 수 없습니다." },
+        { status: 400 }
       );
     }
 

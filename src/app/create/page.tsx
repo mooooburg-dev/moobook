@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PhotoUploader from "@/components/PhotoUploader";
 import ThemeSelector from "@/components/ThemeSelector";
+import CustomKeywordsModal from "@/components/CustomKeywordsModal";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import type { ChildGender, ThemeId } from "@/types";
@@ -12,12 +13,20 @@ export default function CreatePage() {
   const router = useRouter();
   const [photo, setPhoto] = useState<File | null>(null);
   const [theme, setTheme] = useState<ThemeId | null>(null);
+  const [customKeywords, setCustomKeywords] = useState<
+    [string, string, string] | null
+  >(null);
+  const [customModalOpen, setCustomModalOpen] = useState(false);
   const [childName, setChildName] = useState("");
   const [childGender, setChildGender] = useState<ChildGender>("boy");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = photo && theme && childName.trim();
+  const canSubmit =
+    photo &&
+    theme &&
+    childName.trim() &&
+    (theme !== "custom" || customKeywords !== null);
 
   async function handleSubmit() {
     if (!canSubmit || !photo || !theme) return;
@@ -59,7 +68,28 @@ export default function CreatePage() {
         throw new Error(insertError?.message || "Book 생성 실패");
       }
 
-      // 3. 생성된 bookId로 이동
+      // 3. 커스텀 시나리오면 LLM으로 시나리오 생성 후 저장
+      if (theme === "custom") {
+        if (!customKeywords) throw new Error("키워드가 선택되지 않았습니다.");
+        const customRes = await fetch("/api/custom-scenario", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bookId: book.id,
+            keywords: customKeywords,
+            childName: childName.trim(),
+            childGender,
+          }),
+        });
+        if (!customRes.ok) {
+          const customErr = await customRes.json().catch(() => ({}));
+          throw new Error(
+            customErr.error || "커스텀 시나리오 생성에 실패했습니다."
+          );
+        }
+      }
+
+      // 4. 생성된 bookId로 이동
       router.push(`/create/${book.id}`);
     } catch (err) {
       console.error("생성 실패:", err);
@@ -188,8 +218,26 @@ export default function CreatePage() {
             테마 선택
           </h2>
         </div>
-        <ThemeSelector selectedTheme={theme} onSelect={setTheme} />
+        <ThemeSelector
+          selectedTheme={theme}
+          onSelect={(id) => {
+            setTheme(id);
+            setCustomKeywords(null);
+          }}
+          onSelectCustom={() => setCustomModalOpen(true)}
+          customKeywords={customKeywords}
+        />
       </section>
+
+      <CustomKeywordsModal
+        open={customModalOpen}
+        onClose={() => setCustomModalOpen(false)}
+        onSubmit={(kw) => {
+          setCustomKeywords(kw);
+          setTheme("custom");
+          setCustomModalOpen(false);
+        }}
+      />
 
       {/* 에러 메시지 */}
       {error && (
@@ -203,7 +251,11 @@ export default function CreatePage() {
           disabled={!canSubmit || isSubmitting}
           onClick={handleSubmit}
         >
-          {isSubmitting ? "✨ 동화책 만드는 중..." : "📖 동화책 만들기 시작!"}
+          {isSubmitting
+            ? theme === "custom"
+              ? "✨ 시나리오 만드는 중..."
+              : "✨ 동화책 만드는 중..."
+            : "📖 동화책 만들기 시작!"}
         </Button>
       </div>
     </div>

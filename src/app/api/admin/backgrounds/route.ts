@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { scenarios } from "@/lib/scenarios";
+import { scenarios, type PresetThemeId } from "@/lib/scenarios";
 import {
   characterStatusColumn,
   isValidGender,
 } from "@/lib/utils/gender-columns";
-import type { ThemeId } from "@/types";
 
 async function verifyAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
@@ -69,7 +68,7 @@ export async function GET(request: NextRequest) {
   > = {};
   const thumbnails: Record<string, string[]> = {};
 
-  for (const themeId of Object.keys(scenarios) as ThemeId[]) {
+  for (const themeId of Object.keys(scenarios) as PresetThemeId[]) {
     const total = scenarios[themeId].pageCount;
     stats[themeId] = {
       total,

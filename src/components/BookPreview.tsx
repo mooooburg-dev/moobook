@@ -3,30 +3,44 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { replaceChildName } from "@/lib/utils/korean-name";
+
+export interface BookPreviewPage {
+  imageUrl: string;
+  text?: string;
+}
 
 interface BookPreviewProps {
-  pages: string[]; // 이미지 URL 배열
+  pages: BookPreviewPage[];
+  childName?: string | null;
   totalPages?: number; // 전체 페이지 수 (locked 모드에서 사용)
   locked?: boolean; // 결제 전이면 미리보기만
 }
 
 export default function BookPreview({
   pages,
+  childName,
   totalPages = 12,
   locked = false,
 }: BookPreviewProps) {
   const [currentPage, setCurrentPage] = useState(0);
 
-  const isLockedPage = locked && currentPage >= pages.length - 1 && pages.length < totalPages;
+  const isLockedPage =
+    locked && currentPage >= pages.length - 1 && pages.length < totalPages;
+
+  const current = pages[currentPage];
+  const resolvedText = current?.text
+    ? replaceChildName(current.text, childName?.trim() || "주인공")
+    : null;
 
   return (
     <div className="w-full max-w-lg mx-auto">
       {/* 책 모양 프레임 */}
       <div className="frame-border">
         <div className="relative aspect-3/4 bg-peach rounded-xl overflow-hidden">
-          {pages[currentPage] ? (
+          {current?.imageUrl ? (
             <Image
-              src={pages[currentPage]}
+              src={current.imageUrl}
               alt={`페이지 ${currentPage + 1}`}
               fill
               className="object-cover"
@@ -58,6 +72,17 @@ export default function BookPreview({
         </div>
       </div>
 
+      {resolvedText && (
+        <div className="mt-5 bg-white border border-brand/10 rounded-2xl px-5 py-4 shadow-sm">
+          <p
+            className="text-[15px] leading-relaxed text-text whitespace-pre-line"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            {resolvedText}
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mt-5">
         <Button
           variant="outline"
@@ -68,8 +93,12 @@ export default function BookPreview({
           ◀ 이전
         </Button>
 
-        <span className="text-sm text-text-light" style={{ fontFamily: "var(--font-heading)" }}>
-          {currentPage + 1} / {locked ? `${pages.length} (전체 ${totalPages})` : pages.length}
+        <span
+          className="text-sm text-text-light"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          {currentPage + 1} /{" "}
+          {locked ? `${pages.length} (전체 ${totalPages})` : pages.length}
         </span>
 
         <Button

@@ -22,6 +22,8 @@ export function replaceChildName(text: string, childName: string): string {
 
   // "이름(이)와" → "이름과" (받침 O) / "이름와" (받침 X)
   result = result.replace(/\(이\)와/g, final ? "과" : "와");
+  // "이름(이)랑" → 받침 O "이랑", 받침 X "랑"
+  result = result.replace(/\(이\)랑/g, final ? "이랑" : "랑");
   // "이름(이)<조사>" 형태 — 받침 있으면 "이"+조사, 없으면 조사만
   result = result.replace(/\(이\)([는가의도를만])/g, final ? "이$1" : "$1");
   // 문장 끝 등 단독 "(이)"

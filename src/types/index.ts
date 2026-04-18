@@ -17,7 +17,8 @@ export type ThemeId =
   | "brushing-hero"
   | "bath-mission"
   | "first-day-school"
-  | "birthday-adventure";
+  | "birthday-adventure"
+  | "custom";
 
 export type PaymentStatus = "pending" | "paid" | "refunded";
 
@@ -38,6 +39,7 @@ export interface Book {
   preview_pages: string[] | null;
   all_pages: string[] | null;
   pdf_url: string | null;
+  custom_scenario: Omit<Scenario, "id"> | null;
   created_at: string;
   expires_at: string;
 }

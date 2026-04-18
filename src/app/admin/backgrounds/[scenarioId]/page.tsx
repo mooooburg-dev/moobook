@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { scenarios } from "@/lib/scenarios";
+import { scenarios, type PresetThemeId } from "@/lib/scenarios";
 import {
   Card,
   CardContent,
@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { ChildGender, ScenarioBackground, ThemeId } from "@/types";
+import type { ChildGender, ScenarioBackground } from "@/types";
 
 function charImage(bg: ScenarioBackground | undefined, gender: ChildGender) {
   if (!bg) return null;
@@ -92,7 +92,7 @@ export default function AdminBackgroundDetailPage() {
   const params = useParams();
   const router = useRouter();
   const scenarioId = params.scenarioId as string;
-  const scenario = scenarios[scenarioId as ThemeId];
+  const scenario = scenarios[scenarioId as PresetThemeId];
 
   const [backgrounds, setBackgrounds] = useState<ScenarioBackground[]>([]);
   const [loading, setLoading] = useState(true);
