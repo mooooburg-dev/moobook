@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Loader2, RefreshCcw } from "lucide-react";
+import { BookOpen, ChevronLeft, Loader2, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 
 import { scenarios, type PresetThemeId } from "@/lib/scenarios";
@@ -120,12 +121,42 @@ export default function AdminBackgroundDetailPage() {
   const ready = stats.completed + stats.approved;
   const pct = stats.total === 0 ? 0 : (ready / stats.total) * 100;
   const hasGenerating = stats.generating > 0;
+  // 사용자가 이 탭에서 명시적으로 배치를 시작했음을 나타내는 단기 플래그.
+  // 서버가 첫 upsert 할 때까지의 공백을 커버하기 위함. 첫 generating 감지되면 해제.
+  const [justStarted, setJustStarted] = useState(false);
+
+  // 서버 상태 기반 "진행 중" 판정:
+  // - generating 상태 레코드가 있거나
+  // - 완료되지 않은 페이지가 있고, 같은 session_id 중 최근 2분 내 updated 된 레코드가 있음
+  //   (페이지 간 sleep이 3초지만 session 시작 ~ 첫 upsert 까지의 지연 등 여유분 포함)
+  const ACTIVITY_WINDOW_MS = 2 * 60 * 1000;
+  const hasRecentActivity = useMemo(() => {
+    if (ready >= stats.total) return false;
+    const now = Date.now();
+    // 동일 성별의 행 중, session_id가 있고 최근 N분 이내 updated된 게 있으면 배치 진행 중으로 간주
+    return currentRows.some((row) => {
+      if (!row.session_id) return false;
+      if (!row.updated_at) return false;
+      const age = now - new Date(row.updated_at).getTime();
+      return age >= 0 && age < ACTIVITY_WINDOW_MS;
+    });
+  }, [currentRows, ready, stats.total, ACTIVITY_WINDOW_MS]);
+
+  const isBatchInProgress = hasGenerating || hasRecentActivity || justStarted;
+  const shouldPoll = isBatchInProgress;
 
   useEffect(() => {
-    if (!hasGenerating) return;
+    // 첫 generating이 감지되거나 최근 활동이 감지되면 justStarted 해제
+    if (justStarted && (hasGenerating || hasRecentActivity)) {
+      setJustStarted(false);
+    }
+  }, [justStarted, hasGenerating, hasRecentActivity]);
+
+  useEffect(() => {
+    if (!shouldPoll) return;
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
-  }, [hasGenerating, fetchData]);
+  }, [shouldPoll, fetchData]);
 
   const handleAction = async (
     pageNumber: number,
@@ -168,6 +199,7 @@ export default function AdminBackgroundDetailPage() {
       });
       if (!res.ok) throw new Error("실패");
       toast.success(`${gender === "boy" ? "남아" : "여아"} 전체 생성 시작`);
+      setJustStarted(true);
       fetchData();
     } catch {
       toast.error("요청 실패");
@@ -190,6 +222,7 @@ export default function AdminBackgroundDetailPage() {
       });
       if (!res.ok) throw new Error("실패");
       toast.success(`${pageNumber}페이지 재생성 시작`);
+      setJustStarted(true);
       fetchData();
     } catch {
       toast.error("요청 실패");
@@ -247,6 +280,12 @@ export default function AdminBackgroundDetailPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/admin/preview/${scenarioId}`}>
+                <BookOpen className="size-4" />
+                미리보기
+              </Link>
+            </Button>
             <div className="inline-flex rounded-md border p-0.5">
               <button
                 type="button"
@@ -284,10 +323,12 @@ export default function AdminBackgroundDetailPage() {
               <CardTitle className="text-base">
                 {gender === "boy" ? "남아" : "여아"} 일러스트 진행률
               </CardTitle>
-              {hasGenerating && (
+              {isBatchInProgress && (
                 <span className="inline-flex items-center gap-1 text-xs text-blue-600">
                   <Loader2 className="size-3 animate-spin" />
-                  생성 중
+                  {hasGenerating || hasRecentActivity
+                    ? `${ready}/${stats.total} 생성 중`
+                    : "생성 준비 중"}
                 </span>
               )}
             </div>
@@ -295,9 +336,9 @@ export default function AdminBackgroundDetailPage() {
               <Button
                 size="sm"
                 onClick={handleGenerateAll}
-                disabled={batchLoading || hasGenerating}
+                disabled={batchLoading || isBatchInProgress}
               >
-                {batchLoading ? (
+                {batchLoading || isBatchInProgress ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <RefreshCcw className="size-4" />
@@ -308,7 +349,7 @@ export default function AdminBackgroundDetailPage() {
                 size="sm"
                 variant="outline"
                 onClick={handleDeleteAll}
-                disabled={batchLoading || hasGenerating}
+                disabled={batchLoading || isBatchInProgress}
               >
                 전체 삭제
               </Button>
@@ -326,7 +367,13 @@ export default function AdminBackgroundDetailPage() {
                 {ready}/{stats.total}
               </span>
             </div>
-            <Progress value={pct} className="h-2" />
+            <Progress
+              value={pct}
+              className="h-2"
+              indicatorClassName={cn(
+                isBatchInProgress && "animate-pulse"
+              )}
+            />
           </div>
         </CardContent>
       </Card>
@@ -342,7 +389,11 @@ export default function AdminBackgroundDetailPage() {
             const row = byPage.get(page.pageNumber);
             const status: IllustrationStatus =
               row?.status ?? "pending";
-            const imageUrl = row?.image_url ?? null;
+            const imageUrl = row?.image_url
+              ? row.updated_at
+                ? `${row.image_url}?v=${new Date(row.updated_at).getTime()}`
+                : row.image_url
+              : null;
             const isFirstPage = page.pageNumber === 1;
             const canApprove = status === "completed";
             const canRegenerate =
@@ -350,6 +401,10 @@ export default function AdminBackgroundDetailPage() {
               status === "approved" ||
               status === "rejected" ||
               status === "pending";
+
+            const isGenerating = status === "generating";
+            const isQueued =
+              isBatchInProgress && (status === "pending" || !row);
 
             return (
               <Card key={page.pageNumber} className="overflow-hidden">
@@ -362,11 +417,29 @@ export default function AdminBackgroundDetailPage() {
                     <img
                       src={imageUrl}
                       alt={`page ${page.pageNumber}`}
-                      className="w-full h-full object-cover"
+                      className={cn(
+                        "w-full h-full object-cover",
+                        isGenerating && "opacity-40"
+                      )}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
                       이미지 없음
+                    </div>
+                  )}
+                  {isGenerating && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-blue-50/60 backdrop-blur-[1px]">
+                      <Loader2 className="size-6 animate-spin text-blue-600" />
+                      <span className="text-[11px] font-medium text-blue-700">
+                        생성 중
+                      </span>
+                    </div>
+                  )}
+                  {isQueued && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-muted/60">
+                      <span className="text-[11px] text-muted-foreground">
+                        대기 중
+                      </span>
                     </div>
                   )}
                   <div className="absolute top-2 left-2">

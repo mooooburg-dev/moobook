@@ -88,8 +88,12 @@ export default function AdminPreviewDetailPage() {
   const [gender, setGender] = useState<ChildGender>("boy");
 
   function pickImage(bg: ScenarioIllustration | undefined): string | null {
-    if (!bg) return null;
-    return bg.image_url ?? null;
+    if (!bg?.image_url) return null;
+    // 같은 경로로 upsert하므로 updated_at을 쿼리로 붙여 브라우저 캐시 우회
+    const version = bg.updated_at
+      ? new Date(bg.updated_at).getTime()
+      : "";
+    return version ? `${bg.image_url}?v=${version}` : bg.image_url;
   }
 
   const fetchBackgrounds = useCallback(async () => {
@@ -149,8 +153,8 @@ export default function AdminPreviewDetailPage() {
     const first = scenario?.pages[0];
     if (!first) return null;
     const bg = bgMap.get(first.pageNumber);
-    if (!bg) return null;
-    return bg.image_url ?? null;
+    return pickImage(bg);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenario, bgMap]);
 
   useEffect(() => {
