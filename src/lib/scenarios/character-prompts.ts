@@ -10,6 +10,9 @@ const CHARACTER_APPEARANCE: Record<ChildGender, string> = {
 const STYLE_RULES =
   "Art style: warm watercolor children's book illustration, soft pastel colors, gentle lighting, storybook atmosphere, consistent art style across every page, no text, no words, no letters, no captions, portrait orientation with a 3:4 aspect ratio (768x1024).";
 
+const COMPOSITION_RULES =
+  "Composition: wide establishing shot showing the full scene with rich environmental detail. The child character is small within the frame (around 25-35% of the image height), fully visible from head to toe, never cropped. The background, environment, and supporting characters take up most of the frame. Never use close-up, portrait, or bust shots — always show the entire scene with the child as part of it.";
+
 const PAGE_ACTIONS: Record<PresetScenarioId, Record<number, string>> = {
   "forest-adventure": {
     1: "The child stands at a sunlit forest entrance with wide excited eyes, one foot stepping forward, warm morning light pouring through green leaves.",
@@ -202,6 +205,7 @@ export function buildSessionSystemPrompt(gender: ChildGender): string {
     `The main character is ${appearance}.`,
     "Keep the character's face, hair, outfit, and art style perfectly consistent across every page I ask for.",
     STYLE_RULES,
+    COMPOSITION_RULES,
     "When I describe a page, respond only with the rendered illustration image (no text, no explanation).",
   ].join(" ");
 }
@@ -219,7 +223,9 @@ export function buildPagePrompt(
     page.pageNumber === 1
       ? "This is page 1 — establish the main character's appearance clearly."
       : "Keep the character's appearance exactly the same as in previous pages, same face, hair, and outfit.";
-  return `Page ${page.pageNumber}: ${action} ${consistency}`;
+  const composition =
+    "Wide shot, full body visible, the child small within the frame (about 25-35% of image height). Emphasize the environment and surroundings.";
+  return `Page ${page.pageNumber}: ${action} ${consistency} ${composition}`;
 }
 
 /**
@@ -237,6 +243,7 @@ export function buildSinglePageRegenerationPrompt(
     `The main character in the reference image is ${appearance}.`,
     "Match the character in the reference image exactly — same face, same hair, same outfit, same art style.",
     STYLE_RULES,
+    COMPOSITION_RULES,
     `Page ${page.pageNumber}: ${action}`,
   ].join(" ");
 }
