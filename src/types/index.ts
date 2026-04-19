@@ -70,9 +70,6 @@ export interface ScenarioPage {
   pageNumber: number;
   text: string;
   sceneDescription: string;
-  illustrationPrompt: string;
-  /** @deprecated Use illustrationPrompt instead */
-  prompt: string;
   emotion: string;
 }
 
@@ -87,38 +84,22 @@ export interface Scenario {
   pages: ScenarioPage[];
 }
 
-export type BackgroundStatus =
+export type IllustrationStatus =
   | "pending"
   | "generating"
   | "completed"
   | "approved"
   | "rejected";
 
-export type CharacterStatus =
-  | "pending"
-  | "generating"
-  | "completed"
-  | "approved"
-  | "rejected";
-
-export interface ScenarioBackground {
+export interface ScenarioIllustration {
   id: string;
   scenario_id: string;
   page_number: number;
-  illustration_prompt: string;
+  gender: ChildGender;
   image_url: string | null;
-  replicate_output_url: string | null;
-  status: BackgroundStatus;
-  character_image_url: string | null;
-  character_status: CharacterStatus;
-  character_prompt: string | null;
-  reference_image_url: string | null;
-  character_image_url_boy: string | null;
-  character_image_url_girl: string | null;
-  character_status_boy: CharacterStatus;
-  character_status_girl: CharacterStatus;
-  reference_image_url_boy: string | null;
-  reference_image_url_girl: string | null;
+  status: IllustrationStatus;
+  prompt_used: string | null;
+  session_id: string | null;
   created_at: string;
   updated_at: string;
 }

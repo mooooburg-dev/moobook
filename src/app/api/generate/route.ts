@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   generatePreviewPages,
   generateRemainingPages,
-} from "@/lib/replicate";
+} from "@/lib/image-pipeline";
 import { resolveScenario } from "@/lib/scenarios";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ThemeId } from "@/types";
@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
       scenario,
       childName: book.child_name || "주인공",
       bookId,
+      gender: (book.child_gender ?? "boy") as "boy" | "girl",
     };
 
     // 1단계: preview 3페이지 생성 (동기)

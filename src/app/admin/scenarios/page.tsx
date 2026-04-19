@@ -33,16 +33,17 @@ const categoryStyle: Record<ScenarioCategory, string> = {
   science: "bg-cyan-100 text-cyan-700 hover:bg-cyan-100",
 };
 
-type PhaseStats = {
+type GenderStats = {
   total: number;
   completed: number;
   approved: number;
   generating: number;
+  failed: number;
 };
 
-type ScenarioStats = PhaseStats & { character: PhaseStats };
+type ScenarioStats = { boy: GenderStats; girl: GenderStats };
 
-function readyCount(s: PhaseStats | undefined): number {
+function readyCount(s: GenderStats | undefined): number {
   if (!s) return 0;
   return s.completed + s.approved;
 }
@@ -107,7 +108,7 @@ export default function AdminScenariosPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/backgrounds");
+      const res = await fetch("/api/admin/illustrations");
       if (!res.ok) return;
       const data = await res.json();
       setStats(data.stats ?? {});
@@ -121,7 +122,7 @@ export default function AdminScenariosPage() {
   }, [fetchStats]);
 
   const hasGenerating = Object.values(stats).some(
-    (s) => s.generating > 0 || s.character.generating > 0
+    (s) => s.boy.generating > 0 || s.girl.generating > 0
   );
 
   useEffect(() => {
@@ -136,7 +137,7 @@ export default function AdminScenariosPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">시나리오</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {scenarios.length}개 시나리오 · 배경·캐릭터 생성 및 승인 현황
+            {scenarios.length}개 시나리오 · 남아/여아 일러스트 생성 및 승인 현황
           </p>
         </div>
         {loading && (
@@ -150,11 +151,10 @@ export default function AdminScenariosPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {scenarios.map((scenario) => {
           const s = stats[scenario.id];
-          const bgReady = readyCount(s);
-          const charReady = readyCount(s?.character);
-          const approved = s?.approved ?? 0;
+          const boyReady = readyCount(s?.boy);
+          const girlReady = readyCount(s?.girl);
           const total = scenario.pageCount;
-          const allDone = s && bgReady >= total && charReady >= total;
+          const allDone = s && boyReady >= total && girlReady >= total;
 
           return (
             <Link
@@ -201,25 +201,18 @@ export default function AdminScenariosPage() {
                   </div>
                   <div className="flex flex-col gap-2.5">
                     <ProgressLine
-                      label="배경"
-                      ready={bgReady}
+                      label="남아"
+                      ready={boyReady}
                       total={total}
-                      generating={s?.generating ?? 0}
+                      generating={s?.boy.generating ?? 0}
                       tone="blue"
                     />
                     <ProgressLine
-                      label="캐릭터"
-                      ready={charReady}
+                      label="여아"
+                      ready={girlReady}
                       total={total}
-                      generating={s?.character.generating ?? 0}
+                      generating={s?.girl.generating ?? 0}
                       tone="violet"
-                    />
-                    <ProgressLine
-                      label="승인"
-                      ready={approved}
-                      total={total}
-                      generating={0}
-                      tone="emerald"
                     />
                   </div>
                 </CardContent>

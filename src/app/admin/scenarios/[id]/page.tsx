@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ChevronLeft, ChevronDown, ChevronUp, Eye, Sparkles } from "lucide-react";
 
 import { getScenario } from "@/lib/scenarios";
+import { buildPagePrompt } from "@/lib/scenarios/character-prompts";
 import {
   Card,
   CardContent,
@@ -245,7 +246,7 @@ export default function AdminScenarioDetailPage() {
                               "mt-2 p-3 bg-muted rounded-md text-xs whitespace-pre-wrap font-mono leading-relaxed text-muted-foreground"
                             )}
                           >
-                            {page.illustrationPrompt}
+                            {buildPagePrompt(scenario.id, page)}
                           </pre>
                         )}
                       </div>
