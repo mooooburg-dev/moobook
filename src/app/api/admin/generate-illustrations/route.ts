@@ -158,14 +158,52 @@ async function getFirstPageUrl(
   return data.image_url;
 }
 
+/**
+ * 이전 실행 중 서버 재시작 등으로 generating 상태로 stuck된 레코드를 pending으로 복원.
+ * updated_at이 5분 이상 지난 것만 stale로 간주.
+ */
+async function resetStaleGenerating(
+  scenarioId: PresetThemeId,
+  gender: ChildGender
+) {
+  const supabase = createAdminClient();
+  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("moobook_scenario_illustrations")
+    .update({ status: "pending", updated_at: new Date().toISOString() })
+    .eq("scenario_id", scenarioId)
+    .eq("gender", gender)
+    .eq("status", "generating")
+    .lt("updated_at", fiveMinAgo)
+    .select("page_number");
+  if (error) {
+    console.warn(`[ILL:${gender}] ${scenarioId}: stale reset 실패 ${error.message}`);
+    return;
+  }
+  if (data && data.length > 0) {
+    console.log(
+      `[ILL:${gender}] ${scenarioId}: stale generating ${data.length}개 리셋 (p${data.map((r) => r.page_number).join(",")})`
+    );
+  }
+}
+
 async function generateBatch(
   scenarioId: PresetThemeId,
   gender: ChildGender,
   pageNumbers: number[] | null
 ) {
+  console.log(`[ILL:${gender}] ${scenarioId}: generateBatch 진입`);
   const scenario = scenarios[scenarioId];
   const systemPrompt = buildSessionSystemPrompt(gender);
   const sessionId = randomUUID();
+
+  try {
+    await resetStaleGenerating(scenarioId, gender);
+  } catch (err) {
+    console.error(
+      `[ILL:${gender}] ${scenarioId}: resetStaleGenerating 예외 ${err instanceof Error ? err.message : err}`
+    );
+  }
 
   const targetPages = (
     pageNumbers ? scenario.pages.filter((p) => pageNumbers.includes(p.pageNumber)) : scenario.pages
@@ -349,20 +387,28 @@ async function generateBatch(
  * 즉시 202 응답 후 백그라운드에서 생성
  */
 export async function POST(request: NextRequest) {
+  console.log("[ILL] POST 진입");
   if (!(await verifyAdmin())) {
+    console.warn("[ILL] 인증 실패");
     return NextResponse.json({ error: "인증 필요" }, { status: 401 });
   }
 
   try {
-    const { scenarioId, gender, pageNumbers } = await request.json();
+    const body = await request.json();
+    const { scenarioId, gender, pageNumbers } = body;
+    console.log(
+      `[ILL] 요청 body: scenarioId=${scenarioId} gender=${gender} pageNumbers=${JSON.stringify(pageNumbers)}`
+    );
 
     if (!scenarioId || !isValidScenarioId(scenarioId)) {
+      console.warn(`[ILL] 유효하지 않은 scenarioId: ${scenarioId}`);
       return NextResponse.json(
         { error: "유효하지 않은 scenarioId" },
         { status: 400 }
       );
     }
     if (!isValidGender(gender)) {
+      console.warn(`[ILL] 유효하지 않은 gender: ${gender}`);
       return NextResponse.json(
         { error: "유효하지 않은 gender (boy|girl)" },
         { status: 400 }
@@ -377,6 +423,9 @@ export async function POST(request: NextRequest) {
         ? pageNumbers
         : null;
 
+    console.log(
+      `[ILL] 배치 시작: ${scenarioId} ${gender} pages=${pages ? pages.join(",") : "ALL"}`
+    );
     generateBatch(scenarioId, gender, pages).catch((err) => {
       console.error(`[ILL:${gender}] ${scenarioId} 배치 실패:`, err);
     });
@@ -388,7 +437,8 @@ export async function POST(request: NextRequest) {
       },
       { status: 202 }
     );
-  } catch {
+  } catch (err) {
+    console.error("[ILL] POST 처리 중 예외:", err);
     return NextResponse.json({ error: "잘못된 요청" }, { status: 400 });
   }
 }
