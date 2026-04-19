@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Maximize,
+  Minimize,
+} from "lucide-react";
 
 import { scenarios, type PresetThemeId } from "@/lib/scenarios";
 import { replaceChildName } from "@/lib/utils/korean-name";
@@ -79,13 +85,51 @@ export default function AdminPreviewDetailPage() {
   const [imageRatio, setImageRatio] = useState<number>(65);
   const [overlayMode, setOverlayMode] = useState<boolean>(true);
   const [overlayPosition, setOverlayPosition] = useState<"bottom" | "top">(
-    "bottom"
+    "top"
   );
   const [showPrintGuides, setShowPrintGuides] = useState<boolean>(false);
   const [bookShape, setBookShape] = useState<"portrait" | "square">("portrait");
   const [viewMode, setViewMode] = useState<"scroll" | "spread">("spread");
   const [spreadIndex, setSpreadIndex] = useState<number>(0);
   const [gender, setGender] = useState<ChildGender>("boy");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const fullscreenRef = useRef<HTMLDivElement | null>(null);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = fullscreenRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().catch(() => undefined);
+    } else {
+      document.exitFullscreen?.().catch(() => undefined);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "f" || e.key === "F") {
+        const target = e.target as HTMLElement | null;
+        if (
+          target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable)
+        ) {
+          return;
+        }
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [toggleFullscreen]);
 
   function pickImage(bg: ScenarioIllustration | undefined): string | null {
     if (!bg?.image_url) return null;
@@ -445,13 +489,21 @@ export default function AdminPreviewDetailPage() {
       left.type === "cover-front" || left.type === "cover-back";
 
     return (
-      <div className="flex flex-col items-center gap-6 py-4">
+      <div
+        ref={fullscreenRef}
+        className={cn(
+          "flex flex-col items-center gap-6 py-4",
+          isFullscreen &&
+            "bg-background justify-center py-8 px-4 overflow-y-auto"
+        )}
+      >
         <div className="flex items-stretch justify-center w-full">
           {isCover ? (
             <div
               className={cn(
                 "w-full max-w-[520px] relative rounded-xl overflow-hidden",
-                aspectClass
+                aspectClass,
+                isFullscreen && "max-w-[min(90vw,70vh)]"
               )}
               style={{
                 boxShadow:
@@ -463,7 +515,12 @@ export default function AdminPreviewDetailPage() {
                 : renderCoverBack()}
             </div>
           ) : (
-            <div className="flex w-full max-w-[1040px] rounded-xl overflow-hidden">
+            <div
+              className={cn(
+                "flex w-full max-w-[1040px] rounded-xl overflow-hidden",
+                isFullscreen && "max-w-[min(96vw,140vh)]"
+              )}
+            >
               <div className="flex-1">{renderLeaf(left, "left")}</div>
               <div
                 className="w-[2px] bg-linear-to-b from-black/30 via-black/50 to-black/30"
@@ -496,9 +553,17 @@ export default function AdminPreviewDetailPage() {
             다음
             <ChevronRight className="size-4" />
           </Button>
+          <Button variant="outline" onClick={toggleFullscreen}>
+            {isFullscreen ? (
+              <Minimize className="size-4" />
+            ) : (
+              <Maximize className="size-4" />
+            )}
+            {isFullscreen ? "전체화면 종료" : "전체화면"}
+          </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          ← / → 키로 페이지를 넘길 수 있어요
+          ← / → 키로 페이지를 넘기고, F 키로 전체화면을 토글할 수 있어요
         </p>
       </div>
     );
