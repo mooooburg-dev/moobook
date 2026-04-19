@@ -1,11 +1,11 @@
-import type { Scenario, ScenarioPage } from "@/types";
+import type { ChildGender, Scenario, ScenarioPage, ThemeId } from "@/types";
 import {
   generateImageWithReferences,
   isGeminiMockMode,
   PLACEHOLDER_IMAGE,
-  STYLE_SUFFIX,
   type GeminiImageResult,
 } from "@/lib/gemini";
+import { buildSinglePageRegenerationPrompt } from "@/lib/scenarios/character-prompts";
 import { swapFace } from "@/lib/replicate";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadImageBuffer } from "@/lib/storage/upload-image";
@@ -29,6 +29,7 @@ interface GeneratePagesInput {
   scenario: Scenario;
   childName: string;
   bookId: string;
+  gender: ChildGender;
 }
 
 function bookPagePath(bookId: string, pageNumber: number) {
@@ -59,12 +60,12 @@ async function persistIllustration(
 async function generateSinglePage(
   page: ScenarioPage,
   photoUrl: string,
-  bookId: string
+  bookId: string,
+  scenarioId: ThemeId,
+  gender: ChildGender
 ): Promise<string> {
   const tag = `[Pipeline] p${page.pageNumber} (${bookId.slice(0, 8)})`;
-  const prompt = page.illustrationPrompt.includes("watercolor children's book")
-    ? page.illustrationPrompt
-    : page.illustrationPrompt + STYLE_SUFFIX;
+  const prompt = buildSinglePageRegenerationPrompt(scenarioId, page, gender);
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -104,6 +105,7 @@ export async function generatePreviewPages({
   photoUrl,
   scenario,
   bookId,
+  gender,
 }: GeneratePagesInput): Promise<string[]> {
   if (MOCK_MODE) {
     console.log(`[MOCK] mock 이미지 반환 (bookId: ${bookId})`);
@@ -122,7 +124,13 @@ export async function generatePreviewPages({
       );
       imageUrls.push(PLACEHOLDER_IMAGE(page.pageNumber));
     } else {
-      const url = await generateSinglePage(page, photoUrl, bookId);
+      const url = await generateSinglePage(
+        page,
+        photoUrl,
+        bookId,
+        scenario.id,
+        gender
+      );
       imageUrls.push(url);
       generated++;
       if (i < previewPages.length - 1) {
@@ -138,6 +146,7 @@ export async function generateRemainingPages({
   photoUrl,
   scenario,
   bookId,
+  gender,
 }: GeneratePagesInput): Promise<string[]> {
   if (MOCK_MODE) {
     return MOCK_IMAGES.slice(3, scenario.pages.length);
@@ -156,7 +165,13 @@ export async function generateRemainingPages({
     if (DEV_PAGE_LIMIT !== null && generated >= DEV_PAGE_LIMIT) {
       imageUrls.push(PLACEHOLDER_IMAGE(page.pageNumber));
     } else {
-      const url = await generateSinglePage(page, photoUrl, bookId);
+      const url = await generateSinglePage(
+        page,
+        photoUrl,
+        bookId,
+        scenario.id,
+        gender
+      );
       imageUrls.push(url);
       generated++;
       if (i < remainingPages.length - 1) {
