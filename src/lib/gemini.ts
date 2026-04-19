@@ -37,6 +37,9 @@ interface GeminiGenerateOptions {
   tag?: string;
   appendStyle?: boolean;
   appendAspect?: boolean;
+  /** priming 후 세션 호출 시 스타일/비율 지시어 중복 주입 방지 */
+  skipStyleSuffix?: boolean;
+  skipAspectDirective?: boolean;
 }
 
 interface GeminiResponseLike {
@@ -73,8 +76,12 @@ function buildPrompt(
   prompt: string,
   opts?: GeminiGenerateOptions
 ): string {
-  const appendStyle = opts?.appendStyle ?? true;
-  const appendAspect = opts?.appendAspect ?? true;
+  const appendStyle = opts?.skipStyleSuffix
+    ? false
+    : (opts?.appendStyle ?? true);
+  const appendAspect = opts?.skipAspectDirective
+    ? false
+    : (opts?.appendAspect ?? true);
   let full = prompt;
   if (appendStyle && !full.includes("watercolor children's book")) {
     full += STYLE_SUFFIX;
@@ -294,4 +301,40 @@ export async function generateNextPageInSession(
 
 export function isGeminiMockMode(): boolean {
   return MOCK_MODE;
+}
+
+/**
+ * chat 세션에 캐릭터 외형·화풍·제약 규칙을 1회 priming.
+ * 이후 페이지 호출은 장면 묘사만 전송하면 됨.
+ *
+ * systemPrompt에 대한 응답은 이미지일 수도, 텍스트 ack일 수도 있음 → 둘 다 허용.
+ * block만 감지해 throw.
+ */
+export async function primeCharacterSession(
+  chat: Chat | null,
+  systemPrompt: string,
+  opts: { tag?: string; anchorImage?: ReferenceImage } = {}
+): Promise<void> {
+  const tag = opts.tag ?? "[Gemini:prime]";
+  if (MOCK_MODE || !chat) {
+    console.log(`${tag} MOCK 모드, priming 스킵`);
+    return;
+  }
+
+  await withGeminiRetry(async () => {
+    const parts: Array<
+      { text: string } | { inlineData: { mimeType: string; data: string } }
+    > = [];
+    if (opts.anchorImage) {
+      parts.push(await referenceToInlinePart(opts.anchorImage));
+    }
+    parts.push({ text: systemPrompt });
+    const response = await chat.sendMessage({ message: parts });
+    const blocked = extractBlockReason(response as GeminiResponseLike);
+    if (blocked) {
+      throw new Error(`Gemini priming blocked (${blocked})`);
+    }
+    console.log(`${tag} priming 완료`);
+    return undefined as unknown as GeminiImageResult;
+  }, tag);
 }
