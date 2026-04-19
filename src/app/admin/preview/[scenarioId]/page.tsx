@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-import type { ChildGender, ScenarioBackground } from "@/types";
+import type { ChildGender, ScenarioIllustration } from "@/types";
 
 const NAME_OPTIONS = ["지환", "서윤", "하윤", "도윤", "시우", "지안", "수아"];
 
@@ -73,7 +73,7 @@ export default function AdminPreviewDetailPage() {
   const scenarioId = params.scenarioId as string;
   const scenario = scenarios[scenarioId as PresetThemeId];
 
-  const [backgrounds, setBackgrounds] = useState<ScenarioBackground[]>([]);
+  const [illustrations, setIllustrations] = useState<ScenarioIllustration[]>([]);
   const [loading, setLoading] = useState(true);
   const [childName, setChildName] = useState<string>("지환");
   const [imageRatio, setImageRatio] = useState<number>(65);
@@ -85,34 +85,21 @@ export default function AdminPreviewDetailPage() {
   const [bookShape, setBookShape] = useState<"portrait" | "square">("portrait");
   const [viewMode, setViewMode] = useState<"scroll" | "spread">("spread");
   const [spreadIndex, setSpreadIndex] = useState<number>(0);
-  const [imageSource, setImageSource] = useState<"character" | "background">(
-    "character"
-  );
   const [gender, setGender] = useState<ChildGender>("boy");
 
-  function pickImage(bg: ScenarioBackground | undefined): string | null {
+  function pickImage(bg: ScenarioIllustration | undefined): string | null {
     if (!bg) return null;
-    if (imageSource === "character") {
-      const status =
-        gender === "boy" ? bg.character_status_boy : bg.character_status_girl;
-      const url =
-        gender === "boy"
-          ? bg.character_image_url_boy
-          : bg.character_image_url_girl;
-      const charReady = status === "completed" || status === "approved";
-      if (charReady && url) return url;
-    }
     return bg.image_url ?? null;
   }
 
   const fetchBackgrounds = useCallback(async () => {
     try {
       const res = await fetch(
-        `/api/admin/backgrounds?scenarioId=${scenarioId}`
+        `/api/admin/illustrations?scenarioId=${scenarioId}`
       );
       if (!res.ok) return;
       const data = await res.json();
-      setBackgrounds(data.backgrounds);
+      setIllustrations((data.illustrations ?? []) as ScenarioIllustration[]);
     } finally {
       setLoading(false);
     }
@@ -123,10 +110,13 @@ export default function AdminPreviewDetailPage() {
   }, [fetchBackgrounds]);
 
   const bgMap = useMemo(() => {
-    const map = new Map<number, ScenarioBackground>();
-    for (const b of backgrounds) map.set(b.page_number, b);
+    const map = new Map<number, ScenarioIllustration>();
+    for (const row of illustrations) {
+      if (row.gender !== gender) continue;
+      map.set(row.page_number, row);
+    }
     return map;
-  }, [backgrounds]);
+  }, [illustrations, gender]);
 
   type Leaf =
     | { type: "cover-front" }
@@ -160,18 +150,8 @@ export default function AdminPreviewDetailPage() {
     if (!first) return null;
     const bg = bgMap.get(first.pageNumber);
     if (!bg) return null;
-    if (imageSource === "character") {
-      const status =
-        gender === "boy" ? bg.character_status_boy : bg.character_status_girl;
-      const url =
-        gender === "boy"
-          ? bg.character_image_url_boy
-          : bg.character_image_url_girl;
-      const charReady = status === "completed" || status === "approved";
-      if (charReady && url) return url;
-    }
     return bg.image_url ?? null;
-  }, [scenario, bgMap, imageSource, gender]);
+  }, [scenario, bgMap]);
 
   useEffect(() => {
     if (viewMode !== "spread") return;
@@ -567,22 +547,6 @@ export default function AdminPreviewDetailPage() {
               options={[
                 { value: "portrait", label: "세로형 3:4" },
                 { value: "square", label: "정사각형" },
-              ]}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Label className="text-xs text-muted-foreground">이미지</Label>
-            <ToggleGroup
-              value={imageSource}
-              onChange={setImageSource}
-              options={[
-                {
-                  value: "character",
-                  label: "캐릭터",
-                  activeClass: "bg-indigo-600 text-white",
-                },
-                { value: "background", label: "배경만" },
               ]}
             />
           </div>
