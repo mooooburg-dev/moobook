@@ -126,31 +126,17 @@ export default function AdminBackgroundDetailPage() {
   const [justStarted, setJustStarted] = useState(false);
 
   // 서버 상태 기반 "진행 중" 판정:
-  // - generating 상태 레코드가 있거나
-  // - 완료되지 않은 페이지가 있고, 같은 session_id 중 최근 2분 내 updated 된 레코드가 있음
-  //   (페이지 간 sleep이 3초지만 session 시작 ~ 첫 upsert 까지의 지연 등 여유분 포함)
-  const ACTIVITY_WINDOW_MS = 2 * 60 * 1000;
-  const hasRecentActivity = useMemo(() => {
-    if (ready >= stats.total) return false;
-    const now = Date.now();
-    // 동일 성별의 행 중, session_id가 있고 최근 N분 이내 updated된 게 있으면 배치 진행 중으로 간주
-    return currentRows.some((row) => {
-      if (!row.session_id) return false;
-      if (!row.updated_at) return false;
-      const age = now - new Date(row.updated_at).getTime();
-      return age >= 0 && age < ACTIVITY_WINDOW_MS;
-    });
-  }, [currentRows, ready, stats.total, ACTIVITY_WINDOW_MS]);
-
-  const isBatchInProgress = hasGenerating || hasRecentActivity || justStarted;
+  // generating 상태 레코드가 있으면 배치 진행 중으로 간주.
+  // justStarted는 사용자가 막 배치를 시작한 뒤 첫 generating upsert 전까지의 공백을 커버한다.
+  const isBatchInProgress = hasGenerating || justStarted;
   const shouldPoll = isBatchInProgress;
 
   useEffect(() => {
-    // 첫 generating이 감지되거나 최근 활동이 감지되면 justStarted 해제
-    if (justStarted && (hasGenerating || hasRecentActivity)) {
+    // 첫 generating이 감지되면 justStarted 해제
+    if (justStarted && hasGenerating) {
       setJustStarted(false);
     }
-  }, [justStarted, hasGenerating, hasRecentActivity]);
+  }, [justStarted, hasGenerating]);
 
   useEffect(() => {
     if (!shouldPoll) return;
@@ -326,7 +312,7 @@ export default function AdminBackgroundDetailPage() {
               {isBatchInProgress && (
                 <span className="inline-flex items-center gap-1 text-xs text-blue-600">
                   <Loader2 className="size-3 animate-spin" />
-                  {hasGenerating || hasRecentActivity
+                  {hasGenerating
                     ? `${ready}/${stats.total} 생성 중`
                     : "생성 준비 중"}
                 </span>
