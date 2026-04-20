@@ -26,6 +26,26 @@ function emptyStats(total: number): GenderStats {
   return { total, completed: 0, approved: 0, generating: 0, failed: 0 };
 }
 
+const STALE_GENERATING_MS = 5 * 60 * 1000;
+
+async function resetStaleGenerating(
+  supabase: ReturnType<typeof createAdminClient>,
+  scenarioId?: string | null
+) {
+  const threshold = new Date(Date.now() - STALE_GENERATING_MS).toISOString();
+  let query = supabase
+    .from("moobook_scenario_illustrations")
+    .update({ status: "pending", updated_at: new Date().toISOString() })
+    .eq("status", "generating")
+    .lt("updated_at", threshold);
+
+  if (scenarioId) {
+    query = query.eq("scenario_id", scenarioId);
+  }
+
+  await query;
+}
+
 /**
  * GET /api/admin/illustrations
  * 전체 시나리오×성별 현황 통계 반환
@@ -40,6 +60,8 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
   const scenarioId = request.nextUrl.searchParams.get("scenarioId");
+
+  await resetStaleGenerating(supabase, scenarioId);
 
   if (scenarioId) {
     const { data, error } = await supabase
