@@ -3,8 +3,8 @@ import type { ChildGender, ScenarioPage, ThemeId } from "@/types";
 type PresetScenarioId = Exclude<ThemeId, "custom">;
 
 const CHARACTER_APPEARANCE: Record<ChildGender, string> = {
-  boy: "a cute 5-year-old Korean boy with short brown hair, round big eyes, rosy cheeks, wearing a light blue fluffy hooded jacket, brown pants, and brown shoes",
-  girl: "a cute 5-year-old Korean girl with shoulder-length brown hair tied with a small pink hair pin, round big eyes, rosy cheeks, wearing a soft pink coat, a floral pattern skirt, and white shoes",
+  boy: "a cute 5-year-old Korean boy with short brown hair, round big eyes, rosy cheeks, wearing a light blue short-sleeve cotton t-shirt, beige knee-length shorts, and white sneakers (summer outfit)",
+  girl: "a cute 5-year-old Korean girl with shoulder-length brown hair tied with a small pink hair pin, round big eyes, rosy cheeks, wearing a soft pink short-sleeve blouse, a light floral pattern skirt above the knee, and white sandals (summer outfit)",
 };
 
 const STYLE_RULES =
