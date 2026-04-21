@@ -16,6 +16,7 @@ export default function CreatePage() {
   const [customKeywords, setCustomKeywords] = useState<
     [string, string, string] | null
   >(null);
+  const [customTopic, setCustomTopic] = useState<string | null>(null);
   const [customModalOpen, setCustomModalOpen] = useState(false);
   const [childName, setChildName] = useState("");
   const [childGender, setChildGender] = useState<ChildGender>("boy");
@@ -77,6 +78,7 @@ export default function CreatePage() {
           body: JSON.stringify({
             bookId: book.id,
             keywords: customKeywords,
+            topic: customTopic,
             childName: childName.trim(),
             childGender,
           }),
@@ -223,17 +225,20 @@ export default function CreatePage() {
           onSelect={(id) => {
             setTheme(id);
             setCustomKeywords(null);
+            setCustomTopic(null);
           }}
           onSelectCustom={() => setCustomModalOpen(true)}
           customKeywords={customKeywords}
+          customTopic={customTopic}
         />
       </section>
 
       <CustomKeywordsModal
         open={customModalOpen}
         onClose={() => setCustomModalOpen(false)}
-        onSubmit={(kw) => {
+        onSubmit={(kw, topic) => {
           setCustomKeywords(kw);
+          setCustomTopic(topic);
           setTheme("custom");
           setCustomModalOpen(false);
         }}
