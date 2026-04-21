@@ -10,6 +10,7 @@ interface ThemeSelectorProps {
   onSelect: (themeId: ThemeId) => void;
   onSelectCustom?: () => void;
   customKeywords?: [string, string, string] | null;
+  customTopic?: string | null;
 }
 
 type PresetThemeConfigId = Exclude<ThemeId, "custom">;
@@ -90,6 +91,7 @@ export default function ThemeSelector({
   onSelect,
   onSelectCustom,
   customKeywords,
+  customTopic,
 }: ThemeSelectorProps) {
   const categories = getScenariosByCategory();
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -149,6 +151,12 @@ export default function ThemeSelector({
                         {kw}
                       </span>
                     ))}
+                  </div>
+                )}
+                {isCustomSelected && customTopic && (
+                  <div className="mt-2 text-xs text-text-light">
+                    핵심 메시지:{" "}
+                    <span className="text-brand">{customTopic}</span>
                   </div>
                 )}
                 {isCustomSelected && (

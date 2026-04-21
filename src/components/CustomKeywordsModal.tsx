@@ -6,11 +6,16 @@ import { Button } from "@/components/ui/button";
 interface CustomKeywordsModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (keywords: [string, string, string]) => void;
+  onSubmit: (
+    keywords: [string, string, string],
+    topic: string | null
+  ) => void;
 }
 
 const KEYWORD_PATTERN = /^[가-힣a-zA-Z0-9\s]{1,12}$/;
+const TOPIC_PATTERN = /^[가-힣a-zA-Z0-9\s]{1,20}$/;
 const PLACEHOLDERS: [string, string, string] = ["사자", "무지개", "사탕"];
+const TOPIC_EXAMPLES = ["양치", "독서", "친구 사귀기", "용기"];
 
 export default function CustomKeywordsModal({
   open,
@@ -18,6 +23,7 @@ export default function CustomKeywordsModal({
   onSubmit,
 }: CustomKeywordsModalProps) {
   const [values, setValues] = useState<[string, string, string]>(["", "", ""]);
+  const [topic, setTopic] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,7 +59,12 @@ export default function CustomKeywordsModal({
       setError("각 키워드는 1~12자의 한글/영문/숫자만 가능합니다.");
       return;
     }
-    onSubmit(trimmed);
+    const trimmedTopic = topic.trim();
+    if (trimmedTopic && !TOPIC_PATTERN.test(trimmedTopic)) {
+      setError("주제는 1~20자의 한글/영문/숫자만 가능합니다.");
+      return;
+    }
+    onSubmit(trimmed, trimmedTopic || null);
   };
 
   return (
@@ -108,6 +119,28 @@ export default function CustomKeywordsModal({
                 />
               </div>
             ))}
+          </div>
+
+          <div className="pt-2 border-t border-gray-100">
+            <label className="text-xs text-text-light block mb-1">
+              핵심 메시지{" "}
+              <span className="text-text-light/70">(선택)</span>
+            </label>
+            <p className="text-xs text-text-light/80 mb-2">
+              아이에게 전달하고 싶은 주제가 있다면 알려주세요. 예:{" "}
+              {TOPIC_EXAMPLES.join(", ")}
+            </p>
+            <input
+              type="text"
+              value={topic}
+              onChange={(e) => {
+                setTopic(e.target.value);
+                setError(null);
+              }}
+              placeholder="예: 양치, 독서"
+              maxLength={20}
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            />
           </div>
 
           {error && (

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { ChildGender } from "@/types";
 
 const KEYWORD_PATTERN = /^[가-힣a-zA-Z0-9\s]{1,12}$/;
+const TOPIC_PATTERN = /^[가-힣a-zA-Z0-9\s]{1,20}$/;
 
 function sanitizeKeywords(raw: unknown): [string, string, string] | null {
   if (!Array.isArray(raw) || raw.length !== 3) return null;
@@ -12,16 +13,27 @@ function sanitizeKeywords(raw: unknown): [string, string, string] | null {
   return [trimmed[0], trimmed[1], trimmed[2]];
 }
 
+function sanitizeTopic(raw: unknown): string | null | "invalid" {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== "string") return "invalid";
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (!TOPIC_PATTERN.test(trimmed)) return "invalid";
+  return trimmed;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { bookId, keywords, childName, childAge, childGender } = body as {
-      bookId?: string;
-      keywords?: unknown;
-      childName?: string;
-      childAge?: number | null;
-      childGender?: ChildGender;
-    };
+    const { bookId, keywords, topic, childName, childAge, childGender } =
+      body as {
+        bookId?: string;
+        keywords?: unknown;
+        topic?: unknown;
+        childName?: string;
+        childAge?: number | null;
+        childGender?: ChildGender;
+      };
 
     if (!bookId || !childName || !childGender) {
       return NextResponse.json(
@@ -36,6 +48,16 @@ export async function POST(request: NextRequest) {
         {
           error:
             "키워드 3개가 필요합니다. 각 키워드는 1~12자의 한글/영문/숫자여야 합니다.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const sanitizedTopic = sanitizeTopic(topic);
+    if (sanitizedTopic === "invalid") {
+      return NextResponse.json(
+        {
+          error: "주제는 1~20자의 한글/영문/숫자여야 합니다.",
         },
         { status: 400 }
       );
@@ -68,6 +90,7 @@ export async function POST(request: NextRequest) {
     try {
       scenario = await generateCustomScenario({
         keywords: sanitized,
+        topic: sanitizedTopic,
         childName: childName.trim(),
         childAge: childAge ?? null,
         childGender,
