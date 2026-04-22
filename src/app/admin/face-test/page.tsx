@@ -711,79 +711,88 @@ export default function AdminFaceTestPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {current ? (
-              <>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  {[
-                    { label: "원본 사진", url: current.childPhotoUrl },
-                    { label: "원본 일러스트", url: current.illustrationUrl },
-                    { label: "합성 결과", url: current.resultUrl },
-                  ].map((item) => (
-                    <div key={item.label} className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openPreview(item.url, item.label)}
-                        className="group relative aspect-square w-full overflow-hidden rounded-md border bg-muted transition hover:opacity-95 cursor-zoom-in"
-                      >
-                        <Image
-                          src={item.url}
-                          alt={item.label}
-                          fill
-                          sizes="(min-width: 1024px) 360px, (min-width: 768px) 30vw, 90vw"
-                          className="object-cover"
-                          unoptimized
-                        />
-                      </button>
-                      <p className="text-center text-xs text-muted-foreground">
-                        {item.label}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "원본 사진", url: current.childPhotoUrl },
+                      {
+                        label: "원본 일러스트",
+                        url: current.illustrationUrl,
+                      },
+                      { label: "합성 결과", url: current.resultUrl },
+                    ].map((item) => (
+                      <div key={item.label} className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openPreview(item.url, item.label)}
+                          className="group relative aspect-square w-full overflow-hidden rounded-md border bg-muted transition hover:opacity-95 cursor-zoom-in"
+                        >
+                          <Image
+                            src={item.url}
+                            alt={item.label}
+                            fill
+                            sizes="(min-width: 1280px) 220px, (min-width: 768px) 30vw, 90vw"
+                            className="object-cover"
+                            unoptimized
+                          />
+                        </button>
+                        <p className="text-center text-xs text-muted-foreground">
+                          {item.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
 
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="rounded bg-indigo-100 text-indigo-700 px-2 py-0.5 font-medium">
-                    {modelLabel(current.imageModel)}
-                  </span>
-                  <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
-                    강도 {current.intensity}
-                  </span>
-                  {current.mock && (
-                    <span className="rounded bg-amber-100 text-amber-700 px-2 py-0.5">
-                      mock
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded bg-indigo-100 text-indigo-700 px-2 py-0.5 font-medium">
+                      {modelLabel(current.imageModel)}
                     </span>
-                  )}
+                    <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
+                      강도 {current.intensity}
+                    </span>
+                    {current.mock && (
+                      <span className="rounded bg-amber-100 text-amber-700 px-2 py-0.5">
+                        mock
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <Label className="text-xs">사용된 프롬프트</Label>
-                  <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/50 p-3 text-[11px] leading-relaxed">
-                    {current.promptUsed}
-                  </pre>
-                </div>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs">사용된 프롬프트</Label>
+                    <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/50 p-3 text-[11px] leading-relaxed">
+                      {current.promptUsed}
+                    </pre>
+                  </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() => submit(current.customPrompt)}
-                    disabled={loading}
-                  >
-                    <RefreshCcw className="size-4" />
-                    다시 시도
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setCustomPrompt(current.customPrompt);
-                      toast.info(
-                        "프롬프트를 에디터에 불러왔어요. 수정 후 다시 [합성 시작]을 눌러주세요."
-                      );
-                    }}
-                    disabled={loading}
-                  >
-                    프롬프트 수정 후 시도
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => submit(current.customPrompt)}
+                      disabled={loading}
+                      className="w-full"
+                    >
+                      <RefreshCcw className="size-4" />
+                      다시 시도
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCustomPrompt(current.customPrompt);
+                        toast.info(
+                          "프롬프트를 에디터에 불러왔어요. 수정 후 다시 [합성 시작]을 눌러주세요."
+                        );
+                      }}
+                      disabled={loading}
+                      className="w-full"
+                    >
+                      프롬프트 수정 후 시도
+                    </Button>
+                  </div>
                 </div>
-              </>
+              </div>
             ) : (
               <div className="flex h-64 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
                 아직 합성 결과가 없습니다.
