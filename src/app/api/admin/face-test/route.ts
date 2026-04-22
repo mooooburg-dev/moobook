@@ -35,6 +35,7 @@ interface FaceTestResultRow {
   storage_path: string | null;
   mock: boolean;
   image_model: string;
+  favorited: boolean;
   created_at: string;
 }
 
@@ -246,6 +247,53 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ result: inserted as FaceTestResultRow });
+}
+
+/**
+ * PATCH /api/admin/face-test?id=xxx
+ * body: { favorited: boolean }
+ * 히스토리 즐겨찾기 토글.
+ */
+export async function PATCH(request: NextRequest) {
+  if (!(await verifyAdmin())) {
+    return NextResponse.json({ error: "인증 필요" }, { status: 401 });
+  }
+
+  const id = request.nextUrl.searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "id 필요" }, { status: 400 });
+  }
+
+  let body: { favorited?: unknown };
+  try {
+    body = (await request.json()) as { favorited?: unknown };
+  } catch {
+    return NextResponse.json({ error: "잘못된 요청 body" }, { status: 400 });
+  }
+
+  if (typeof body.favorited !== "boolean") {
+    return NextResponse.json(
+      { error: "favorited(boolean) 이 필요합니다." },
+      { status: 400 }
+    );
+  }
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("moobook_face_test_results")
+    .update({ favorited: body.favorited })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    return NextResponse.json(
+      { error: error?.message ?? "업데이트 실패" },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ result: data as FaceTestResultRow });
 }
 
 /**

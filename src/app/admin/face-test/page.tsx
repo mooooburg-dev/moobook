@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Loader2, RefreshCcw, Trash2, Upload, Wand2, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  RefreshCcw,
+  Star,
+  Trash2,
+  Upload,
+  Wand2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { scenarios, type PresetThemeId } from "@/lib/scenarios";
@@ -51,6 +61,7 @@ interface HistoryEntry {
   customPrompt: string;
   mock: boolean;
   imageModel: string;
+  favorited: boolean;
   createdAt: string;
 }
 
@@ -64,6 +75,7 @@ interface FaceTestResultRow {
   prompt_used: string;
   mock: boolean;
   image_model: string | null;
+  favorited: boolean | null;
   created_at: string;
 }
 
@@ -78,12 +90,49 @@ function rowToEntry(row: FaceTestResultRow): HistoryEntry {
     customPrompt: row.custom_prompt ?? "",
     mock: row.mock,
     imageModel: row.image_model ?? DEFAULT_FACE_TEST_MODEL_ID,
+    favorited: row.favorited ?? false,
     createdAt: row.created_at,
   };
 }
 
 function modelLabel(id: string): string {
   return findFaceTestModel(id)?.label ?? id;
+}
+
+interface FavoriteInsight {
+  total: number;
+  modelCounts: Array<{ id: string; count: number }>;
+  intensityCounts: Array<{ intensity: Intensity; count: number }>;
+  topCustomPrompts: Array<{ text: string; count: number }>;
+}
+
+function computeFavoriteInsight(entries: HistoryEntry[]): FavoriteInsight {
+  const modelMap = new Map<string, number>();
+  const intensityMap = new Map<Intensity, number>();
+  const customMap = new Map<string, number>();
+
+  for (const e of entries) {
+    modelMap.set(e.imageModel, (modelMap.get(e.imageModel) ?? 0) + 1);
+    intensityMap.set(e.intensity, (intensityMap.get(e.intensity) ?? 0) + 1);
+    const trimmed = e.customPrompt.trim();
+    if (trimmed.length > 0) {
+      customMap.set(trimmed, (customMap.get(trimmed) ?? 0) + 1);
+    }
+  }
+
+  return {
+    total: entries.length,
+    modelCounts: Array.from(modelMap.entries())
+      .map(([id, count]) => ({ id, count }))
+      .sort((a, b) => b.count - a.count),
+    intensityCounts: Array.from(intensityMap.entries())
+      .map(([intensity, count]) => ({ intensity, count }))
+      .sort((a, b) => b.count - a.count),
+    topCustomPrompts: Array.from(customMap.entries())
+      .map(([text, count]) => ({ text, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5),
+  };
 }
 
 const INTENSITY_LABELS: Record<Intensity, string> = {
@@ -369,12 +418,16 @@ function HistoryCard({
   entry,
   onPreview,
   onDelete,
+  onToggleFavorite,
   deleting,
+  favoriteUpdating,
 }: {
   entry: HistoryEntry;
   onPreview: (url: string, label: string) => void;
   onDelete: (id: string) => void;
+  onToggleFavorite: (id: string, next: boolean) => void;
   deleting: boolean;
+  favoriteUpdating: boolean;
 }) {
   const items: { url: string; label: string }[] = [
     { url: entry.childPhotoUrl, label: "원본 사진" },
@@ -383,7 +436,12 @@ function HistoryCard({
   ];
   const created = new Date(entry.createdAt);
   return (
-    <Card>
+    <Card
+      className={cn(
+        "transition-colors",
+        entry.favorited && "border-amber-300 bg-amber-50/50"
+      )}
+    >
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="grid grid-cols-3 gap-2">
           {items.map((item) => (
@@ -429,7 +487,30 @@ function HistoryCard({
             {entry.promptUsed}
           </pre>
         </details>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onToggleFavorite(entry.id, !entry.favorited)}
+            disabled={favoriteUpdating}
+            className={cn(
+              entry.favorited
+                ? "text-amber-600 hover:text-amber-700"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {favoriteUpdating ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Star
+                className={cn(
+                  "size-4",
+                  entry.favorited && "fill-amber-400 text-amber-500"
+                )}
+              />
+            )}
+            {entry.favorited ? "즐겨찾기 해제" : "즐겨찾기"}
+          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -470,6 +551,13 @@ export default function AdminFaceTestPage() {
   const [current, setCurrent] = useState<HistoryEntry | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [favoriteUpdatingId, setFavoriteUpdatingId] = useState<string | null>(
+    null
+  );
+  const [historyFilter, setHistoryFilter] = useState<"all" | "favorites">(
+    "all"
+  );
+  const [insightOpen, setInsightOpen] = useState(true);
   const [preview, setPreview] = useState<{ url: string; label: string } | null>(
     null
   );
@@ -477,6 +565,95 @@ export default function AdminFaceTestPage() {
   const openPreview = useCallback((url: string, label: string) => {
     setPreview({ url, label });
   }, []);
+
+  const favorites = useMemo(
+    () => history.filter((e) => e.favorited),
+    [history]
+  );
+  const filteredHistory = useMemo(
+    () =>
+      historyFilter === "favorites"
+        ? history.filter((e) => e.favorited)
+        : history,
+    [history, historyFilter]
+  );
+  const favoriteInsight = useMemo(
+    () => computeFavoriteInsight(favorites),
+    [favorites]
+  );
+  const insight = (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">
+          모델별 사용
+        </p>
+        <ul className="flex flex-col gap-1 text-sm">
+          {favoriteInsight.modelCounts.map((m) => {
+            const pct = Math.round(
+              (m.count / favoriteInsight.total) * 100
+            );
+            return (
+              <li key={m.id} className="flex items-center justify-between gap-2">
+                <span className="truncate">{modelLabel(m.id)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {m.count}회 · {pct}%
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">
+          강도별 분포
+        </p>
+        <ul className="flex flex-col gap-1 text-sm">
+          {favoriteInsight.intensityCounts.map((row) => {
+            const pct = Math.round(
+              (row.count / favoriteInsight.total) * 100
+            );
+            return (
+              <li
+                key={row.intensity}
+                className="flex items-center justify-between gap-2"
+              >
+                <span>강도 {row.intensity}</span>
+                <span className="text-xs text-muted-foreground">
+                  {row.count}회 · {pct}%
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">
+          자주 쓴 추가 프롬프트
+        </p>
+        {favoriteInsight.topCustomPrompts.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            즐겨찾기한 항목에 추가 프롬프트가 없어요.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-1 text-sm">
+            {favoriteInsight.topCustomPrompts.map((p) => (
+              <li
+                key={p.text}
+                className="flex items-start justify-between gap-2"
+              >
+                <span className="flex-1 break-words text-[13px]">
+                  {p.text}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  ×{p.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -494,6 +671,31 @@ export default function AdminFaceTestPage() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  const toggleFavorite = useCallback(async (id: string, next: boolean) => {
+    setFavoriteUpdatingId(id);
+    try {
+      const res = await fetch(`/api/admin/face-test?id=${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ favorited: next }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "업데이트 실패");
+      }
+      setHistory((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, favorited: next } : e))
+      );
+      setCurrent((prev) =>
+        prev?.id === id ? { ...prev, favorited: next } : prev
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "업데이트 실패");
+    } finally {
+      setFavoriteUpdatingId(null);
+    }
   }, []);
 
   const deleteEntry = useCallback(
@@ -790,6 +992,32 @@ export default function AdminFaceTestPage() {
                     >
                       프롬프트 수정 후 시도
                     </Button>
+                    <Button
+                      variant={current.favorited ? "default" : "outline"}
+                      onClick={() =>
+                        toggleFavorite(current.id, !current.favorited)
+                      }
+                      disabled={favoriteUpdatingId === current.id}
+                      className={cn(
+                        "w-full",
+                        current.favorited &&
+                          "bg-amber-500 hover:bg-amber-600 text-white"
+                      )}
+                    >
+                      {favoriteUpdatingId === current.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Star
+                          className={cn(
+                            "size-4",
+                            current.favorited && "fill-white"
+                          )}
+                        />
+                      )}
+                      {current.favorited
+                        ? "즐겨찾기 해제"
+                        : "이 결과 즐겨찾기"}
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -802,8 +1030,41 @@ export default function AdminFaceTestPage() {
         </Card>
       </div>
 
+      {favorites.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50/40">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Star className="size-4 fill-amber-400 text-amber-500" />
+                괜찮은 케이스 인사이트
+                <span className="text-sm font-normal text-muted-foreground">
+                  ({favorites.length})
+                </span>
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setInsightOpen((v) => !v)}
+              >
+                {insightOpen ? (
+                  <ChevronUp className="size-4" />
+                ) : (
+                  <ChevronDown className="size-4" />
+                )}
+                {insightOpen ? "접기" : "펼치기"}
+              </Button>
+            </div>
+            <CardDescription>
+              즐겨찾기한 합성 결과를 기준으로 모델·강도 분포와 공통 프롬프트를
+              요약합니다. 실제 프로덕션에 적용할 조합을 고르는 데 참고하세요.
+            </CardDescription>
+          </CardHeader>
+          {insightOpen && <CardContent>{insight}</CardContent>}
+        </Card>
+      )}
+
       <section className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold tracking-tight">
             히스토리
             {history.length > 0 && (
@@ -812,28 +1073,51 @@ export default function AdminFaceTestPage() {
               </span>
             )}
           </h2>
-          <p className="text-xs text-muted-foreground">
-            최근 50개까지 표시됩니다.
-          </p>
+          <div className="flex items-center gap-3">
+            <Tabs
+              value={historyFilter}
+              onValueChange={(v) =>
+                setHistoryFilter(v as "all" | "favorites")
+              }
+            >
+              <TabsList>
+                <TabsTrigger value="all">전체</TabsTrigger>
+                <TabsTrigger value="favorites">
+                  <Star className="size-3 fill-amber-400 text-amber-500" />
+                  즐겨찾기만
+                  {favorites.length > 0 && (
+                    <span className="ml-1 text-[10px] text-muted-foreground">
+                      {favorites.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <p className="text-xs text-muted-foreground">최근 50개</p>
+          </div>
         </div>
         {historyLoading ? (
           <div className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground gap-2">
             <Loader2 className="size-4 animate-spin" />
             불러오는 중...
           </div>
-        ) : history.length === 0 ? (
+        ) : filteredHistory.length === 0 ? (
           <div className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-            아직 시도한 합성이 없습니다.
+            {historyFilter === "favorites"
+              ? "즐겨찾기한 합성이 없습니다."
+              : "아직 시도한 합성이 없습니다."}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {history.map((entry) => (
+            {filteredHistory.map((entry) => (
               <HistoryCard
                 key={entry.id}
                 entry={entry}
                 onPreview={openPreview}
                 onDelete={deleteEntry}
+                onToggleFavorite={toggleFavorite}
                 deleting={deletingId === entry.id}
+                favoriteUpdating={favoriteUpdatingId === entry.id}
               />
             ))}
           </div>
