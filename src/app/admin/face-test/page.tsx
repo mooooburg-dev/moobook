@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Loader2, RefreshCcw, Upload, Wand2, X } from "lucide-react";
+import { Loader2, RefreshCcw, Trash2, Upload, Wand2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { scenarios, type PresetThemeId } from "@/lib/scenarios";
@@ -45,7 +45,33 @@ interface HistoryEntry {
   intensity: Intensity;
   customPrompt: string;
   mock: boolean;
-  createdAt: number;
+  createdAt: string;
+}
+
+interface FaceTestResultRow {
+  id: string;
+  child_photo_url: string;
+  illustration_url: string;
+  result_url: string;
+  intensity: number;
+  custom_prompt: string | null;
+  prompt_used: string;
+  mock: boolean;
+  created_at: string;
+}
+
+function rowToEntry(row: FaceTestResultRow): HistoryEntry {
+  return {
+    id: row.id,
+    childPhotoUrl: row.child_photo_url,
+    illustrationUrl: row.illustration_url,
+    resultUrl: row.result_url,
+    promptUsed: row.prompt_used,
+    intensity: row.intensity as Intensity,
+    customPrompt: row.custom_prompt ?? "",
+    mock: row.mock,
+    createdAt: row.created_at,
+  };
 }
 
 const INTENSITY_LABELS: Record<Intensity, string> = {
@@ -330,15 +356,20 @@ function ScenarioIllustrationPicker({
 function HistoryCard({
   entry,
   onPreview,
+  onDelete,
+  deleting,
 }: {
   entry: HistoryEntry;
   onPreview: (url: string, label: string) => void;
+  onDelete: (id: string) => void;
+  deleting: boolean;
 }) {
   const items: { url: string; label: string }[] = [
     { url: entry.childPhotoUrl, label: "원본 사진" },
     { url: entry.illustrationUrl, label: "원본 일러스트" },
     { url: entry.resultUrl, label: "합성 결과" },
   ];
+  const created = new Date(entry.createdAt);
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4">
@@ -370,7 +401,10 @@ function HistoryCard({
               mock
             </span>
           )}
-          <span>{new Date(entry.createdAt).toLocaleTimeString("ko-KR")}</span>
+          <span>
+            {created.toLocaleDateString("ko-KR")}{" "}
+            {created.toLocaleTimeString("ko-KR")}
+          </span>
         </div>
         <details className="text-xs">
           <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
@@ -380,6 +414,22 @@ function HistoryCard({
             {entry.promptUsed}
           </pre>
         </details>
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onDelete(entry.id)}
+            disabled={deleting}
+            className="text-destructive hover:text-destructive"
+          >
+            {deleting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Trash2 className="size-4" />
+            )}
+            삭제
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -400,8 +450,10 @@ export default function AdminFaceTestPage() {
   const [customPrompt, setCustomPrompt] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [current, setCurrent] = useState<HistoryEntry | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ url: string; label: string } | null>(
     null
   );
@@ -409,6 +461,48 @@ export default function AdminFaceTestPage() {
   const openPreview = useCallback((url: string, label: string) => {
     setPreview({ url, label });
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/face-test");
+        if (!res.ok) return;
+        const data = (await res.json()) as { results: FaceTestResultRow[] };
+        if (cancelled) return;
+        setHistory((data.results ?? []).map(rowToEntry));
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const deleteEntry = useCallback(
+    async (id: string) => {
+      if (!confirm("이 히스토리를 삭제할까요?")) return;
+      setDeletingId(id);
+      try {
+        const res = await fetch(`/api/admin/face-test?id=${id}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? "삭제 실패");
+        }
+        setHistory((prev) => prev.filter((e) => e.id !== id));
+        setCurrent((prev) => (prev?.id === id ? null : prev));
+        toast.success("삭제했어요");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "삭제 실패");
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     setIllustrationUrl(
@@ -440,22 +534,8 @@ export default function AdminFaceTestPage() {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error ?? "합성 실패");
         }
-        const data = (await res.json()) as {
-          resultUrl: string;
-          promptUsed: string;
-          mock: boolean;
-        };
-        const entry: HistoryEntry = {
-          id: crypto.randomUUID(),
-          childPhotoUrl,
-          illustrationUrl,
-          resultUrl: data.resultUrl,
-          promptUsed: data.promptUsed,
-          intensity,
-          customPrompt: overridePrompt ?? customPrompt,
-          mock: data.mock,
-          createdAt: Date.now(),
-        };
+        const data = (await res.json()) as { result: FaceTestResultRow };
+        const entry = rowToEntry(data.result);
         setCurrent(entry);
         setHistory((prev) => [entry, ...prev]);
         toast.success("합성 완료");
@@ -477,8 +557,8 @@ export default function AdminFaceTestPage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           아이 사진을 일러스트에 합성해 보는 전용 테스트 페이지입니다. 이 페이지의
-          결과물은 실제 주문 플로우와 무관하며, 세션 내에서만 히스토리가
-          유지됩니다.
+          결과물은 실제 주문 플로우와 무관하며, 히스토리는 DB에 저장되어 영구
+          보존됩니다.
         </p>
       </header>
 
@@ -660,12 +740,24 @@ export default function AdminFaceTestPage() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-semibold tracking-tight">히스토리</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            히스토리
+            {history.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                ({history.length})
+              </span>
+            )}
+          </h2>
           <p className="text-xs text-muted-foreground">
-            페이지 새로고침 시 초기화됩니다.
+            최근 50개까지 표시됩니다.
           </p>
         </div>
-        {history.length === 0 ? (
+        {historyLoading ? (
+          <div className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground gap-2">
+            <Loader2 className="size-4 animate-spin" />
+            불러오는 중...
+          </div>
+        ) : history.length === 0 ? (
           <div className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
             아직 시도한 합성이 없습니다.
           </div>
@@ -676,6 +768,8 @@ export default function AdminFaceTestPage() {
                 key={entry.id}
                 entry={entry}
                 onPreview={openPreview}
+                onDelete={deleteEntry}
+                deleting={deletingId === entry.id}
               />
             ))}
           </div>
