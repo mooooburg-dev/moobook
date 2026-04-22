@@ -579,7 +579,7 @@ export default function AdminFaceTestPage() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 items-start lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">입력</CardTitle>
@@ -702,7 +702,7 @@ export default function AdminFaceTestPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="lg:sticky lg:top-6">
           <CardHeader>
             <CardTitle className="text-base">결과</CardTitle>
             <CardDescription>
