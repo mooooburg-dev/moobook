@@ -4,6 +4,11 @@ import OpenAI, { toFile } from "openai";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadImageBuffer } from "@/lib/storage/upload-image";
+import {
+  DEFAULT_FACE_TEST_MODEL_ID,
+  findFaceTestModel,
+  isValidFaceTestModelId,
+} from "@/lib/face-test/models";
 
 const FACE_TEST_BUCKET = "moobook_backgrounds";
 const FACE_TEST_PREFIX = "face-test";
@@ -16,6 +21,7 @@ interface FaceTestRequest {
   illustrationUrl: string;
   intensity: Intensity;
   customPrompt?: string;
+  model?: string;
 }
 
 interface FaceTestResultRow {
@@ -28,6 +34,7 @@ interface FaceTestResultRow {
   prompt_used: string;
   storage_path: string | null;
   mock: boolean;
+  image_model: string;
   created_at: string;
 }
 
@@ -116,7 +123,7 @@ export async function GET() {
 
 /**
  * POST /api/admin/face-test
- * body: { childPhotoUrl, illustrationUrl, intensity, customPrompt? }
+ * body: { childPhotoUrl, illustrationUrl, intensity, customPrompt?, model? }
  * 아이 사진 + 대상 일러스트를 합성하고 DB에 결과 기록 후 레코드 반환.
  */
 export async function POST(request: NextRequest) {
@@ -131,7 +138,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "잘못된 요청 body" }, { status: 400 });
   }
 
-  const { childPhotoUrl, illustrationUrl, intensity, customPrompt } = body;
+  const { childPhotoUrl, illustrationUrl, intensity, customPrompt, model } =
+    body;
 
   if (!childPhotoUrl || !illustrationUrl) {
     return NextResponse.json(
@@ -146,6 +154,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const modelId =
+    model && isValidFaceTestModelId(model) ? model : DEFAULT_FACE_TEST_MODEL_ID;
+  const modelConfig = findFaceTestModel(modelId);
+  if (!modelConfig) {
+    return NextResponse.json(
+      { error: `알 수 없는 이미지 모델: ${modelId}` },
+      { status: 400 }
+    );
+  }
+
   const promptUsed = buildPrompt(intensity, customPrompt);
   const timestamp = Date.now();
   const resultPath = `${FACE_TEST_PREFIX}/${timestamp}.png`;
@@ -156,8 +174,10 @@ export async function POST(request: NextRequest) {
   let storagePath: string | null = null;
 
   if (mock) {
-    resultUrl = `https://placehold.co/1024x1024/e8d5f5/7c3aed?text=face-test+mock+intensity+${intensity}`;
-  } else {
+    resultUrl = `https://placehold.co/1024x1024/e8d5f5/7c3aed?text=face-test+mock+${encodeURIComponent(
+      modelId
+    )}+intensity+${intensity}`;
+  } else if (modelConfig.provider === "openai") {
     try {
       const [childFile, illustrationFile] = await Promise.all([
         fetchAsBlobPart(childPhotoUrl, "child-photo"),
@@ -165,9 +185,8 @@ export async function POST(request: NextRequest) {
       ]);
 
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      // TODO(2026-05): gpt-image-2 API 공개 이후 "gpt-image-2"로 전환
       const response = await openai.images.edit({
-        model: "gpt-image-1.5",
+        model: modelId,
         image: [childFile, illustrationFile],
         prompt: promptUsed,
         size: "1024x1024",
@@ -195,6 +214,11 @@ export async function POST(request: NextRequest) {
         err instanceof Error ? err.message : "얼굴 합성에 실패했습니다.";
       return NextResponse.json({ error: message }, { status: 500 });
     }
+  } else {
+    return NextResponse.json(
+      { error: `지원하지 않는 provider: ${modelConfig.provider}` },
+      { status: 400 }
+    );
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -208,6 +232,7 @@ export async function POST(request: NextRequest) {
       prompt_used: promptUsed,
       storage_path: storagePath,
       mock,
+      image_model: modelId,
     })
     .select("*")
     .single();

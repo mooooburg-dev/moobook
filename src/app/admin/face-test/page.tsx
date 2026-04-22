@@ -6,6 +6,11 @@ import { Loader2, RefreshCcw, Trash2, Upload, Wand2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { scenarios, type PresetThemeId } from "@/lib/scenarios";
+import {
+  DEFAULT_FACE_TEST_MODEL_ID,
+  FACE_TEST_MODELS,
+  findFaceTestModel,
+} from "@/lib/face-test/models";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -45,6 +50,7 @@ interface HistoryEntry {
   intensity: Intensity;
   customPrompt: string;
   mock: boolean;
+  imageModel: string;
   createdAt: string;
 }
 
@@ -57,6 +63,7 @@ interface FaceTestResultRow {
   custom_prompt: string | null;
   prompt_used: string;
   mock: boolean;
+  image_model: string | null;
   created_at: string;
 }
 
@@ -70,8 +77,13 @@ function rowToEntry(row: FaceTestResultRow): HistoryEntry {
     intensity: row.intensity as Intensity,
     customPrompt: row.custom_prompt ?? "",
     mock: row.mock,
+    imageModel: row.image_model ?? DEFAULT_FACE_TEST_MODEL_ID,
     createdAt: row.created_at,
   };
+}
+
+function modelLabel(id: string): string {
+  return findFaceTestModel(id)?.label ?? id;
 }
 
 const INTENSITY_LABELS: Record<Intensity, string> = {
@@ -393,6 +405,9 @@ function HistoryCard({
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="rounded bg-indigo-100 text-indigo-700 px-2 py-0.5 font-medium">
+            {modelLabel(entry.imageModel)}
+          </span>
           <span className="rounded bg-muted px-2 py-0.5">
             강도 {entry.intensity}
           </span>
@@ -448,6 +463,7 @@ export default function AdminFaceTestPage() {
   >(null);
   const [intensity, setIntensity] = useState<Intensity>(3);
   const [customPrompt, setCustomPrompt] = useState("");
+  const [modelId, setModelId] = useState<string>(DEFAULT_FACE_TEST_MODEL_ID);
 
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -528,6 +544,7 @@ export default function AdminFaceTestPage() {
             illustrationUrl,
             intensity,
             customPrompt: overridePrompt ?? customPrompt,
+            model: modelId,
           }),
         });
         if (!res.ok) {
@@ -545,7 +562,7 @@ export default function AdminFaceTestPage() {
         setLoading(false);
       }
     },
-    [childPhotoUrl, illustrationUrl, intensity, customPrompt]
+    [childPhotoUrl, illustrationUrl, intensity, customPrompt, modelId]
   );
 
   return (
@@ -615,8 +632,32 @@ export default function AdminFaceTestPage() {
             <Separator />
 
             <div className="flex flex-col gap-2">
+              <Label>3. 이미지 모델</Label>
+              <Select value={modelId} onValueChange={setModelId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FACE_TEST_MODELS.map((m) => (
+                    <SelectItem
+                      key={m.id}
+                      value={m.id}
+                      disabled={m.disabled}
+                    >
+                      {m.label}
+                      {m.disabled && " (비활성)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {findFaceTestModel(modelId)?.description ?? ""}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <Label>3. 합성 강도</Label>
+                <Label>4. 합성 강도</Label>
                 <span className="text-xs text-muted-foreground">
                   {intensity} / 5
                 </span>
@@ -640,7 +681,7 @@ export default function AdminFaceTestPage() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="custom-prompt">4. 추가 프롬프트 (선택)</Label>
+              <Label htmlFor="custom-prompt">5. 추가 프롬프트 (선택)</Label>
               <textarea
                 id="custom-prompt"
                 value={customPrompt}
@@ -697,6 +738,20 @@ export default function AdminFaceTestPage() {
                       </p>
                     </div>
                   ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded bg-indigo-100 text-indigo-700 px-2 py-0.5 font-medium">
+                    {modelLabel(current.imageModel)}
+                  </span>
+                  <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
+                    강도 {current.intensity}
+                  </span>
+                  {current.mock && (
+                    <span className="rounded bg-amber-100 text-amber-700 px-2 py-0.5">
+                      mock
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-2">
