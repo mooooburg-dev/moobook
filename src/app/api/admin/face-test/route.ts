@@ -136,8 +136,9 @@ export async function POST(request: NextRequest) {
     ]);
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // TODO(2026-05): gpt-image-2 API 공개 이후 "gpt-image-2"로 전환
     const response = await openai.images.edit({
-      model: "gpt-image-1",
+      model: "gpt-image-1.5",
       image: [childFile, illustrationFile],
       prompt: promptUsed,
       size: "1024x1024",
