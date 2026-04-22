@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
@@ -326,28 +327,39 @@ function ScenarioIllustrationPicker({
   );
 }
 
-function HistoryCard({ entry }: { entry: HistoryEntry }) {
+function HistoryCard({
+  entry,
+  onPreview,
+}: {
+  entry: HistoryEntry;
+  onPreview: (url: string, label: string) => void;
+}) {
+  const items: { url: string; label: string }[] = [
+    { url: entry.childPhotoUrl, label: "원본 사진" },
+    { url: entry.illustrationUrl, label: "원본 일러스트" },
+    { url: entry.resultUrl, label: "합성 결과" },
+  ];
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="grid grid-cols-3 gap-2">
-          {[entry.childPhotoUrl, entry.illustrationUrl, entry.resultUrl].map(
-            (url, idx) => (
-              <div
-                key={idx}
-                className="relative aspect-square overflow-hidden rounded-md bg-muted"
-              >
-                <Image
-                  src={url}
-                  alt={["원본", "일러스트", "결과"][idx]}
-                  fill
-                  sizes="120px"
-                  className="object-cover"
-                  unoptimized
-                />
-              </div>
-            )
-          )}
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => onPreview(item.url, item.label)}
+              className="relative aspect-square overflow-hidden rounded-md bg-muted transition hover:opacity-90 cursor-zoom-in"
+            >
+              <Image
+                src={item.url}
+                alt={item.label}
+                fill
+                sizes="180px"
+                className="object-cover"
+                unoptimized
+              />
+            </button>
+          ))}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="rounded bg-muted px-2 py-0.5">
@@ -390,6 +402,13 @@ export default function AdminFaceTestPage() {
   const [loading, setLoading] = useState(false);
   const [current, setCurrent] = useState<HistoryEntry | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [preview, setPreview] = useState<{ url: string; label: string } | null>(
+    null
+  );
+
+  const openPreview = useCallback((url: string, label: string) => {
+    setPreview({ url, label });
+  }, []);
 
   useEffect(() => {
     setIllustrationUrl(
@@ -463,7 +482,7 @@ export default function AdminFaceTestPage() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">입력</CardTitle>
@@ -572,24 +591,28 @@ export default function AdminFaceTestPage() {
           <CardContent className="flex flex-col gap-4">
             {current ? (
               <>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   {[
                     { label: "원본 사진", url: current.childPhotoUrl },
                     { label: "원본 일러스트", url: current.illustrationUrl },
                     { label: "합성 결과", url: current.resultUrl },
                   ].map((item) => (
-                    <div key={item.label} className="flex flex-col gap-1">
-                      <div className="relative aspect-square overflow-hidden rounded-md border bg-muted">
+                    <div key={item.label} className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openPreview(item.url, item.label)}
+                        className="group relative aspect-square w-full overflow-hidden rounded-md border bg-muted transition hover:opacity-95 cursor-zoom-in"
+                      >
                         <Image
                           src={item.url}
                           alt={item.label}
                           fill
-                          sizes="240px"
+                          sizes="(min-width: 1024px) 360px, (min-width: 768px) 30vw, 90vw"
                           className="object-cover"
                           unoptimized
                         />
-                      </div>
-                      <p className="text-center text-[11px] text-muted-foreground">
+                      </button>
+                      <p className="text-center text-xs text-muted-foreground">
                         {item.label}
                       </p>
                     </div>
@@ -649,11 +672,57 @@ export default function AdminFaceTestPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {history.map((entry) => (
-              <HistoryCard key={entry.id} entry={entry} />
+              <HistoryCard
+                key={entry.id}
+                entry={entry}
+                onPreview={openPreview}
+              />
             ))}
           </div>
         )}
       </section>
+
+      <Dialog
+        open={preview !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreview(null);
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-[min(96vw,1280px)] p-0 overflow-hidden border-0 bg-transparent shadow-none"
+          showCloseButton={false}
+        >
+          <DialogTitle className="sr-only">
+            {preview?.label ?? "이미지 확대"}
+          </DialogTitle>
+          {preview && (
+            <div className="relative flex items-center justify-center">
+              <button
+                type="button"
+                onClick={() => setPreview(null)}
+                className="absolute top-3 right-3 z-10 rounded-full bg-background/90 p-2 shadow hover:bg-background"
+                aria-label="닫기"
+              >
+                <X className="size-4" />
+              </button>
+              <div className="relative w-full max-h-[90vh] aspect-square bg-black/80 rounded-lg overflow-hidden">
+                <Image
+                  src={preview.url}
+                  alt={preview.label}
+                  fill
+                  sizes="96vw"
+                  className="object-contain"
+                  unoptimized
+                  priority
+                />
+              </div>
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-background/90 px-3 py-1 text-xs shadow">
+                {preview.label}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
