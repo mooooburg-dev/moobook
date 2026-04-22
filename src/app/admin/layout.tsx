@@ -10,6 +10,7 @@ import {
   Loader2,
   ShoppingBag,
   BookText,
+  Wand2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,17 @@ const menuSections: MenuSection[] = [
         href: "/admin/scenarios",
         label: "시나리오",
         icon: <Layers className="size-4" />,
+        ready: true,
+      },
+    ],
+  },
+  {
+    title: "실험실",
+    items: [
+      {
+        href: "/admin/face-test",
+        label: "얼굴 합성 테스트",
+        icon: <Wand2 className="size-4" />,
         ready: true,
       },
     ],
