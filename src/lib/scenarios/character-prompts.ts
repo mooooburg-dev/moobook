@@ -13,6 +13,9 @@ const STYLE_RULES =
 const COMPOSITION_RULES =
   "Composition: wide establishing shot showing the full scene with rich environmental detail. The child character is small within the frame (around 25-35% of the image height), fully visible from head to toe, never cropped. The background, environment, and supporting characters take up most of the frame. Never use close-up, portrait, or bust shots — always show the entire scene with the child as part of it.";
 
+const COVER_COMPOSITION_RULES =
+  "Cover composition: this image will be used as a book cover with a title overlaid across the top 40% of the frame. Place the child character in the LOWER HALF of the image (roughly between 55% and 95% of the frame height), with the child's head and face BELOW the vertical midline. The TOP 40% of the frame must be a calm, uncluttered background area (open sky, tree canopy, distant scenery, or soft atmosphere) with no faces, no important subjects, and no high-contrast detail — this space is reserved for the title text. Keep the child fully visible from head to toe. Do not render any text, letters, or title in the image itself.";
+
 const PAGE_ACTIONS: Record<PresetScenarioId, Record<number, string>> = {
   "forest-adventure": {
     1: "The child stands at a sunlit forest entrance with wide excited eyes, one foot stepping forward, warm morning light pouring through green leaves.",
@@ -219,12 +222,13 @@ export function buildPagePrompt(
   page: ScenarioPage
 ): string {
   const action = getActionDescription(scenarioId, page);
-  const consistency =
-    page.pageNumber === 1
-      ? "This is page 1 — establish the main character's appearance clearly."
-      : "Keep the character's appearance exactly the same as in previous pages, same face, hair, and outfit.";
-  const composition =
-    "Wide shot, full body visible, the child small within the frame (about 25-35% of image height). Emphasize the environment and surroundings.";
+  const isCover = page.pageNumber === 1;
+  const consistency = isCover
+    ? "This is page 1 (book cover) — establish the main character's appearance clearly."
+    : "Keep the character's appearance exactly the same as in previous pages, same face, hair, and outfit.";
+  const composition = isCover
+    ? COVER_COMPOSITION_RULES
+    : "Wide shot, full body visible, the child small within the frame (about 25-35% of image height). Emphasize the environment and surroundings.";
   return `Page ${page.pageNumber}: ${action} ${consistency} ${composition}`;
 }
 
@@ -239,11 +243,12 @@ export function buildSinglePageRegenerationPrompt(
 ): string {
   const appearance = CHARACTER_APPEARANCE[gender];
   const action = getActionDescription(scenarioId, page);
+  const isCover = page.pageNumber === 1;
   return [
     `The main character in the reference image is ${appearance}.`,
     "Match the character in the reference image exactly — same face, same hair, same outfit, same art style.",
     STYLE_RULES,
-    COMPOSITION_RULES,
+    isCover ? COVER_COMPOSITION_RULES : COMPOSITION_RULES,
     `Page ${page.pageNumber}: ${action}`,
   ].join(" ");
 }
