@@ -16,7 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { ChildGender, IllustrationStatus, ScenarioIllustration } from "@/types";
 
@@ -499,6 +499,7 @@ export default function AdminBackgroundDetailPage() {
         onOpenChange={(open) => !open && setModalImage(null)}
       >
         <DialogContent className="max-w-4xl p-0 overflow-hidden">
+          <DialogTitle className="sr-only">일러스트 미리보기</DialogTitle>
           {modalImage && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={modalImage} alt="preview" className="w-full h-auto" />
