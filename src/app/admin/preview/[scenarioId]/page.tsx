@@ -35,12 +35,40 @@ const NAME_OPTIONS = ["지환", "서윤", "하윤", "도윤", "시우", "지안"
 const BLEED_PCT = 3;
 const SAFE_PCT = 8;
 
+const MIN_CHUNK_LENGTH = 10;
+
 function splitSentences(text: string): string[] {
-  const matches = text.match(/[^.!?]+[.!?]+["'”’]?\s*/g);
-  if (!matches) return [text.trim()].filter(Boolean);
-  const rest = text.replace(matches.join(""), "").trim();
-  const result = matches.map((s) => s.trim()).filter(Boolean);
-  if (rest) result.push(rest);
+  const sentenceMatches = text.match(/[^.!?]+[.!?]+["'”’]?\s*/g);
+  let sentences: string[];
+  if (!sentenceMatches) {
+    sentences = [text.trim()].filter(Boolean);
+  } else {
+    const rest = text.replace(sentenceMatches.join(""), "").trim();
+    sentences = sentenceMatches.map((s) => s.trim()).filter(Boolean);
+    if (rest) sentences.push(rest);
+  }
+
+  const result: string[] = [];
+  for (const sentence of sentences) {
+    const parts = sentence.split(/(?<=,)\s+/).filter(Boolean);
+    const merged: string[] = [];
+    for (const part of parts) {
+      const last = merged[merged.length - 1];
+      if (last && last.length < MIN_CHUNK_LENGTH) {
+        merged[merged.length - 1] = `${last} ${part}`;
+      } else {
+        merged.push(part);
+      }
+    }
+    if (merged.length > 1) {
+      const lastIdx = merged.length - 1;
+      if (merged[lastIdx].length < MIN_CHUNK_LENGTH) {
+        merged[lastIdx - 1] = `${merged[lastIdx - 1]} ${merged[lastIdx]}`;
+        merged.pop();
+      }
+    }
+    result.push(...merged);
+  }
   return result;
 }
 
@@ -233,12 +261,13 @@ export default function AdminPreviewDetailPage() {
   const aspectClass =
     bookShape === "square" ? "aspect-square" : "aspect-3/4";
 
-  function renderPageLeaf(pageNumber: number) {
+  function renderPageLeaf(pageNumber: number, side: "left" | "right" = "left") {
     const page = scenario!.pages.find((p) => p.pageNumber === pageNumber);
     if (!page) return null;
     const bg = bgMap.get(page.pageNumber);
     const imageUrl = pickImage(bg);
     const sentences = splitSentences(replaceName(page.text));
+    const isRight = side === "right";
 
     if (overlayMode) {
       return (
@@ -272,7 +301,8 @@ export default function AdminPreviewDetailPage() {
           <div
             className={cn(
               "absolute flex",
-              overlayPosition === "top" ? "items-start" : "items-end"
+              overlayPosition === "top" ? "items-start" : "items-end",
+              isRight ? "justify-end" : "justify-start"
             )}
             style={{
               top: overlayPosition === "top" ? `${SAFE_PCT}%` : "auto",
@@ -287,6 +317,7 @@ export default function AdminPreviewDetailPage() {
                 fontFamily: "'Jua', sans-serif",
                 wordBreak: "keep-all",
                 textShadow: "0 2px 6px rgba(0,0,0,0.6)",
+                textAlign: isRight ? "right" : "left",
               }}
             >
               {sentences.map((sentence, i) => (
@@ -298,7 +329,7 @@ export default function AdminPreviewDetailPage() {
             className="absolute text-xs text-white/80 tabular-nums"
             style={{
               bottom: `${SAFE_PCT / 2}%`,
-              right: `${SAFE_PCT}%`,
+              [isRight ? "left" : "right"]: `${SAFE_PCT}%`,
               textShadow: "0 1px 3px rgba(0,0,0,0.6)",
             }}
           >
@@ -328,7 +359,10 @@ export default function AdminPreviewDetailPage() {
           )}
         </div>
         <div
-          className="relative bg-cream px-6 py-5 flex items-center"
+          className={cn(
+            "relative bg-cream px-6 py-5 flex items-center",
+            isRight ? "justify-end" : "justify-start"
+          )}
           style={{ height: `${textRatio}%` }}
         >
           <div
@@ -336,13 +370,19 @@ export default function AdminPreviewDetailPage() {
             style={{
               fontFamily: "'Jua', sans-serif",
               wordBreak: "keep-all",
+              textAlign: isRight ? "right" : "left",
             }}
           >
             {sentences.map((sentence, i) => (
               <p key={i}>{sentence}</p>
             ))}
           </div>
-          <span className="absolute bottom-2 right-4 text-xs text-muted-foreground tabular-nums">
+          <span
+            className={cn(
+              "absolute bottom-2 text-xs text-muted-foreground tabular-nums",
+              isRight ? "left-4" : "right-4"
+            )}
+          >
             {page.pageNumber} / {scenario!.pageCount}
           </span>
         </div>
@@ -362,10 +402,22 @@ export default function AdminPreviewDetailPage() {
               className="w-full h-full object-cover"
             />
           ) : null}
-          <div className="absolute inset-0 bg-black/25" />
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 text-white"
-            style={{ fontFamily: "'Jua', sans-serif" }}
+            className="absolute inset-x-0 top-0 pointer-events-none"
+            style={{
+              height: "40%",
+              background:
+                "linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0) 100%)",
+            }}
+          />
+          <div
+            className="absolute inset-x-0 top-0 flex flex-col items-center text-center px-6 text-white"
+            style={{
+              fontFamily: "'Jua', sans-serif",
+              paddingTop: "8%",
+              height: "40%",
+              justifyContent: "center",
+            }}
           >
             <div
               className="text-xl sm:text-2xl opacity-95 mb-3"
@@ -450,7 +502,7 @@ export default function AdminPreviewDetailPage() {
     else if (leaf.type === "blank")
       content = <div className="absolute inset-0 bg-cream" />;
     else if (leaf.type === "letter") content = renderLetter();
-    else if (leaf.type === "page") content = renderPageLeaf(leaf.pageNumber);
+    else if (leaf.type === "page") content = renderPageLeaf(leaf.pageNumber, side);
 
     return (
       <div className={baseClass} style={shadowStyle}>
