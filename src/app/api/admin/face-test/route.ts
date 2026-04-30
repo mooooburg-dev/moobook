@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import OpenAI, { toFile } from "openai";
+import type { ImageEditParamsNonStreaming } from "openai/resources/images";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadImageBuffer } from "@/lib/storage/upload-image";
@@ -186,14 +187,18 @@ export async function POST(request: NextRequest) {
       ]);
 
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const response = await openai.images.edit({
+      const editOptions: ImageEditParamsNonStreaming = {
         model: modelId,
         image: [childFile, illustrationFile],
         prompt: promptUsed,
         size: "1024x1024",
-        input_fidelity: "high",
         quality: "high",
-      });
+      };
+      if (modelId !== "gpt-image-2") {
+        editOptions.input_fidelity = "high";
+      }
+
+      const response = await openai.images.edit(editOptions);
 
       const b64 = response.data?.[0]?.b64_json;
       if (!b64) {
