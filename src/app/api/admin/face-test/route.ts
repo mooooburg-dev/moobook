@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
         image: [childFile, illustrationFile],
         prompt: promptUsed,
         size: "1024x1024",
-        quality: "high",
+        quality: "low",
       };
       if (modelId !== "gpt-image-2") {
         editOptions.input_fidelity = "high";
