@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { randomUUID } from "crypto";
+import OpenAI, { toFile } from "openai";
+import type {
+  ImageEditParamsNonStreaming,
+  ImageGenerateParamsNonStreaming,
+} from "openai/resources/images";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scenarios, type PresetThemeId } from "@/lib/scenarios";
 import {
@@ -16,11 +21,18 @@ import {
   primeCharacterSession,
   type GeminiImageResult,
 } from "@/lib/gemini";
+import {
+  DEFAULT_SCENARIO_IMAGE_MODEL_ID,
+  findScenarioImageModel,
+  isValidScenarioImageModelId,
+  type ScenarioImageModel,
+} from "@/lib/scenario-image-models";
 import type { Chat } from "@google/genai";
-import { uploadImageBuffer, uploadImageFromUrl } from "@/lib/storage/upload-image";
+import {
+  uploadImageBuffer,
+  uploadImageFromUrl,
+} from "@/lib/storage/upload-image";
 import type { ChildGender } from "@/types";
-
-const MOCK_MODE = isGeminiMockMode();
 
 const PLACEHOLDER_URL = (
   scenarioId: string,
@@ -46,10 +58,51 @@ function isValidGender(value: unknown): value is ChildGender {
   return value === "boy" || value === "girl";
 }
 
+type IllustrationMutationRow = {
+  scenario_id: PresetThemeId;
+  page_number: number;
+  gender: ChildGender;
+  status: "pending" | "generating" | "completed";
+  image_url?: string | null;
+  prompt_used?: string;
+  session_id?: string;
+  image_model?: string;
+  updated_at: string;
+};
+
 async function verifyAdmin(): Promise<boolean> {
   const cookieStore = await cookies();
   const auth = cookieStore.get("admin_auth");
   return auth?.value === process.env.ADMIN_PASSWORD;
+}
+
+function isMissingImageModelColumnError(error: { message?: string }) {
+  return (
+    typeof error.message === "string" &&
+    error.message.toLowerCase().includes("image_model")
+  );
+}
+
+async function upsertIllustrationRow(row: IllustrationMutationRow) {
+  const supabase = createAdminClient();
+  const write = async (payload: IllustrationMutationRow) =>
+    supabase
+      .from("moobook_scenario_illustrations")
+      .upsert(payload, { onConflict: "scenario_id,page_number,gender" });
+
+  let { error } = await write(row);
+  if (error && row.image_model && isMissingImageModelColumnError(error)) {
+    const fallbackRow: IllustrationMutationRow = { ...row };
+    delete fallbackRow.image_model;
+    console.warn(
+      "[ILL] image_model 컬럼이 없어 모델 기록 없이 일러스트 상태를 저장합니다. supabase/migrations/014_scenario_illustration_image_model.sql 적용 필요"
+    );
+    ({ error } = await write(fallbackRow));
+  }
+
+  if (error) {
+    throw new Error(`일러스트 DB 저장 실패: ${error.message}`);
+  }
 }
 
 async function upsertGenerating(
@@ -57,74 +110,88 @@ async function upsertGenerating(
   gender: ChildGender,
   pageNumber: number,
   prompt: string,
-  sessionId: string
+  sessionId: string,
+  modelId: string
 ) {
-  const supabase = createAdminClient();
-  await supabase.from("moobook_scenario_illustrations").upsert(
-    {
-      scenario_id: scenarioId,
-      page_number: pageNumber,
-      gender,
-      status: "generating",
-      prompt_used: prompt,
-      session_id: sessionId,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "scenario_id,page_number,gender" }
-  );
+  await upsertIllustrationRow({
+    scenario_id: scenarioId,
+    page_number: pageNumber,
+    gender,
+    status: "generating",
+    prompt_used: prompt,
+    session_id: sessionId,
+    image_model: modelId,
+    updated_at: new Date().toISOString(),
+  });
 }
 
 async function markCompleted(
   scenarioId: PresetThemeId,
   gender: ChildGender,
   pageNumber: number,
-  url: string
+  url: string,
+  modelId: string
 ) {
-  const supabase = createAdminClient();
-  await supabase
-    .from("moobook_scenario_illustrations")
-    .update({
-      image_url: url,
-      status: "completed",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("scenario_id", scenarioId)
-    .eq("page_number", pageNumber)
-    .eq("gender", gender);
+  console.log(
+    `[ILL:${gender}] ${scenarioId} p${pageNumber} DB completed upsert start model=${modelId} url=${url}`
+  );
+  await upsertIllustrationRow({
+    scenario_id: scenarioId,
+    page_number: pageNumber,
+    gender,
+    image_url: url,
+    status: "completed",
+    image_model: modelId,
+    updated_at: new Date().toISOString(),
+  });
+  console.log(
+    `[ILL:${gender}] ${scenarioId} p${pageNumber} DB completed upsert complete model=${modelId}`
+  );
 }
 
 async function markFailed(
   scenarioId: PresetThemeId,
   gender: ChildGender,
   pageNumber: number,
-  msg: string
+  msg: string,
+  modelId: string
 ) {
-  const supabase = createAdminClient();
   console.error(
     `[ILL:${gender}] ${scenarioId} p${pageNumber} 실패: ${msg}`
   );
-  await supabase
-    .from("moobook_scenario_illustrations")
-    .update({ status: "pending", updated_at: new Date().toISOString() })
-    .eq("scenario_id", scenarioId)
-    .eq("page_number", pageNumber)
-    .eq("gender", gender);
+  await upsertIllustrationRow({
+    scenario_id: scenarioId,
+    page_number: pageNumber,
+    gender,
+    status: "pending",
+    image_model: modelId,
+    updated_at: new Date().toISOString(),
+  });
 }
 
 async function persistImageResult(
   scenarioId: PresetThemeId,
   gender: ChildGender,
   pageNumber: number,
-  image: GeminiImageResult
+  image: GeminiImageResult,
+  modelId: string
 ): Promise<string> {
   const supabase = createAdminClient();
-  return uploadImageBuffer(supabase, {
+  const path = illustrationPath(scenarioId, gender, pageNumber);
+  console.log(
+    `[ILL:${gender}] ${scenarioId} p${pageNumber} storage upload start path=${path} model=${modelId} bytes=${image.buffer.length} mime=${image.mimeType}`
+  );
+  const url = await uploadImageBuffer(supabase, {
     bucket: ILLUSTRATION_BUCKET,
-    path: illustrationPath(scenarioId, gender, pageNumber),
+    path,
     buffer: image.buffer,
     contentType: image.mimeType,
     upsert: true,
   });
+  console.log(
+    `[ILL:${gender}] ${scenarioId} p${pageNumber} storage upload complete path=${path} url=${url}`
+  );
+  return url;
 }
 
 async function persistPlaceholder(
@@ -158,6 +225,110 @@ async function getFirstPageUrl(
   return data.image_url;
 }
 
+function isMockMode(modelConfig: ScenarioImageModel): boolean {
+  if (process.env.USE_MOCK_AI === "true") return true;
+  if (modelConfig.provider === "gemini") return isGeminiMockMode();
+  return !process.env.OPENAI_API_KEY;
+}
+
+async function fetchAsOpenAIFile(url: string, fallbackName: string) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`참조 이미지 fetch 실패 (${fallbackName}): ${res.status}`);
+  }
+  const arrayBuffer = await res.arrayBuffer();
+  const contentType = res.headers.get("content-type") ?? "image/png";
+  const ext = contentType.includes("jpeg")
+    ? "jpg"
+    : contentType.includes("webp")
+      ? "webp"
+      : "png";
+  return toFile(Buffer.from(arrayBuffer), `${fallbackName}.${ext}`, {
+    type: contentType,
+  });
+}
+
+function extractOpenAIImageBuffer(response: {
+  data?: Array<{ b64_json?: string }>;
+}) {
+  const b64 = response.data?.[0]?.b64_json;
+  if (!b64) {
+    throw new Error("OpenAI 응답에 b64_json 이 없습니다.");
+  }
+  return {
+    buffer: Buffer.from(b64, "base64"),
+    mimeType: "image/png",
+  };
+}
+
+async function generateOpenAIFromText(
+  prompt: string,
+  modelId: string
+): Promise<GeminiImageResult> {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const options: ImageGenerateParamsNonStreaming = {
+    model: modelId,
+    prompt,
+    size: "1024x1536",
+    quality: "high",
+  };
+  const response = await openai.images.generate(options);
+  const image = extractOpenAIImageBuffer(response);
+  console.log(
+    `[ILL:openai] text image generated model=${modelId} bytes=${image.buffer.length}`
+  );
+  return image;
+}
+
+async function generateOpenAIWithReferences(
+  prompt: string,
+  references: Array<{ url: string }>,
+  modelId: string
+): Promise<GeminiImageResult> {
+  if (references.length === 0) {
+    return generateOpenAIFromText(prompt, modelId);
+  }
+
+  const files = await Promise.all(
+    references.map((ref, idx) =>
+      fetchAsOpenAIFile(ref.url, `scenario-reference-${idx + 1}`)
+    )
+  );
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const options: ImageEditParamsNonStreaming = {
+    model: modelId,
+    image: files,
+    prompt,
+    size: "1024x1536",
+    quality: "high",
+  };
+  if (modelId !== "gpt-image-2") {
+    options.input_fidelity = "high";
+  }
+  const response = await openai.images.edit(options);
+  const image = extractOpenAIImageBuffer(response);
+  console.log(
+    `[ILL:openai] reference image generated model=${modelId} refs=${references.length} bytes=${image.buffer.length}`
+  );
+  return image;
+}
+
+async function generateWithReferencesByModel(
+  prompt: string,
+  references: Array<{ url: string }>,
+  modelConfig: ScenarioImageModel,
+  opts: { tag: string; pageNumber: number; appendStyle?: boolean }
+): Promise<GeminiImageResult> {
+  if (modelConfig.provider === "gemini") {
+    return generateImageWithReferences(prompt, references, {
+      tag: opts.tag,
+      pageNumber: opts.pageNumber,
+      appendStyle: opts.appendStyle,
+    });
+  }
+  return generateOpenAIWithReferences(prompt, references, modelConfig.id);
+}
+
 /**
  * 이전 실행 중 서버 재시작 등으로 generating 상태로 stuck된 레코드를 pending으로 복원.
  * updated_at이 5분 이상 지난 것만 stale로 간주.
@@ -177,7 +348,9 @@ async function resetStaleGenerating(
     .lt("updated_at", fiveMinAgo)
     .select("page_number");
   if (error) {
-    console.warn(`[ILL:${gender}] ${scenarioId}: stale reset 실패 ${error.message}`);
+    console.warn(
+      `[ILL:${gender}] ${scenarioId}: stale reset 실패 ${error.message}`
+    );
     return;
   }
   if (data && data.length > 0) {
@@ -190,9 +363,14 @@ async function resetStaleGenerating(
 async function generateBatch(
   scenarioId: PresetThemeId,
   gender: ChildGender,
-  pageNumbers: number[] | null
+  pageNumbers: number[] | null,
+  modelConfig: ScenarioImageModel
 ) {
-  console.log(`[ILL:${gender}] ${scenarioId}: generateBatch 진입`);
+  const modelId = modelConfig.id;
+  const mockMode = isMockMode(modelConfig);
+  console.log(
+    `[ILL:${gender}] ${scenarioId}: generateBatch 진입 (model=${modelId})`
+  );
   const scenario = scenarios[scenarioId];
   const systemPrompt = buildSessionSystemPrompt(gender);
   const sessionId = randomUUID();
@@ -206,7 +384,9 @@ async function generateBatch(
   }
 
   const targetPages = (
-    pageNumbers ? scenario.pages.filter((p) => pageNumbers.includes(p.pageNumber)) : scenario.pages
+    pageNumbers
+      ? scenario.pages.filter((p) => pageNumbers.includes(p.pageNumber))
+      : scenario.pages
   ).sort((a, b) => a.pageNumber - b.pageNumber);
 
   if (targetPages.length === 0) {
@@ -223,7 +403,7 @@ async function generateBatch(
   // 단건/일부 재생성 (1페이지 없음) — anchor로 1페이지 이미지 사용
   if (!startsAtPageOne) {
     const firstPageUrl = await getFirstPageUrl(scenarioId, gender);
-    if (!firstPageUrl && !MOCK_MODE) {
+    if (!firstPageUrl && !mockMode) {
       console.warn(
         `[ILL:${gender}] ${scenarioId}: 1페이지 이미지 없음 → 단건 재생성 불가`
       );
@@ -241,30 +421,37 @@ async function generateBatch(
           gender,
           page.pageNumber,
           prompt,
-          sessionId
+          sessionId,
+          modelId
         );
 
         let url: string;
-        if (MOCK_MODE) {
-          url = await persistPlaceholder(scenarioId, gender, page.pageNumber);
+        if (mockMode) {
+          url = await persistPlaceholder(
+            scenarioId,
+            gender,
+            page.pageNumber
+          );
         } else {
-          const image = await generateImageWithReferences(
+          const image = await generateWithReferencesByModel(
             prompt,
             [{ url: firstPageUrl! }],
+            modelConfig,
             { tag, pageNumber: page.pageNumber, appendStyle: false }
           );
           url = await persistImageResult(
             scenarioId,
             gender,
             page.pageNumber,
-            image
+            image,
+            modelId
           );
         }
 
-        await markCompleted(scenarioId, gender, page.pageNumber, url);
+        await markCompleted(scenarioId, gender, page.pageNumber, url, modelId);
         console.log(`${tag} 완료`);
 
-        if (i < targetPages.length - 1 && !MOCK_MODE) {
+        if (i < targetPages.length - 1 && !mockMode) {
           await sleep(3000);
         }
       } catch (err) {
@@ -272,7 +459,8 @@ async function generateBatch(
           scenarioId,
           gender,
           page.pageNumber,
-          err instanceof Error ? err.message : String(err)
+          err instanceof Error ? err.message : String(err),
+          modelId
         );
       }
     }
@@ -285,7 +473,7 @@ async function generateBatch(
   let chat: Chat | null = null;
   let chatFailureStreak = 0;
 
-  if (!MOCK_MODE) {
+  if (!mockMode && modelConfig.provider === "gemini") {
     chat = createStoryChatSession();
     if (chat) {
       try {
@@ -303,8 +491,13 @@ async function generateBatch(
 
   for (let i = 0; i < targetPages.length; i++) {
     const page = targetPages[i];
-    const tag = `[ILL:${gender}] ${scenarioId} p${page.pageNumber} (${chat ? "chat" : "fallback"})`;
-    const pagePrompt = buildPagePrompt(scenarioId, page);
+    const tag = `[ILL:${gender}] ${scenarioId} p${page.pageNumber} (${
+      chat ? "chat" : modelConfig.provider
+    })`;
+    const pagePrompt =
+      modelConfig.provider === "openai"
+        ? buildSinglePageRegenerationPrompt(scenarioId, page, gender)
+        : buildPagePrompt(scenarioId, page);
 
     try {
       await upsertGenerating(
@@ -312,12 +505,17 @@ async function generateBatch(
         gender,
         page.pageNumber,
         pagePrompt,
-        sessionId
+        sessionId,
+        modelId
       );
 
       let url: string;
-      if (MOCK_MODE) {
-        url = await persistPlaceholder(scenarioId, gender, page.pageNumber);
+      if (mockMode) {
+        url = await persistPlaceholder(
+          scenarioId,
+          gender,
+          page.pageNumber
+        );
       } else if (chat) {
         const image = await generateNextPageInSession(chat, pagePrompt, [], {
           tag,
@@ -329,7 +527,8 @@ async function generateBatch(
           scenarioId,
           gender,
           page.pageNumber,
-          image
+          image,
+          modelId
         );
       } else {
         // chat 포기 후 fallback: 1페이지가 이미 있으면 anchor, 없으면 단건 단독 생성
@@ -342,29 +541,31 @@ async function generateBatch(
           page,
           gender
         );
-        const image = await generateImageWithReferences(
+        const image = await generateWithReferencesByModel(
           fallbackPrompt,
           firstPageUrl ? [{ url: firstPageUrl }] : [],
+          modelConfig,
           { tag, pageNumber: page.pageNumber, appendStyle: false }
         );
         url = await persistImageResult(
           scenarioId,
           gender,
           page.pageNumber,
-          image
+          image,
+          modelId
         );
       }
 
-      await markCompleted(scenarioId, gender, page.pageNumber, url);
+      await markCompleted(scenarioId, gender, page.pageNumber, url, modelId);
       console.log(`${tag} 완료`);
       chatFailureStreak = 0;
 
-      if (i < targetPages.length - 1 && !MOCK_MODE) {
+      if (i < targetPages.length - 1 && !mockMode) {
         await sleep(3000);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      await markFailed(scenarioId, gender, page.pageNumber, msg);
+      await markFailed(scenarioId, gender, page.pageNumber, msg, modelId);
 
       if (chat) {
         chatFailureStreak++;
@@ -383,7 +584,7 @@ async function generateBatch(
 
 /**
  * POST /api/admin/generate-illustrations
- * body: { scenarioId, gender, pageNumbers? }
+ * body: { scenarioId, gender, pageNumbers?, model? }
  * 즉시 202 응답 후 백그라운드에서 생성
  */
 export async function POST(request: NextRequest) {
@@ -395,9 +596,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { scenarioId, gender, pageNumbers } = body;
+    const { scenarioId, gender, pageNumbers, model } = body;
     console.log(
-      `[ILL] 요청 body: scenarioId=${scenarioId} gender=${gender} pageNumbers=${JSON.stringify(pageNumbers)}`
+      `[ILL] 요청 body: scenarioId=${scenarioId} gender=${gender} pageNumbers=${JSON.stringify(pageNumbers)} model=${model}`
     );
 
     if (!scenarioId || !isValidScenarioId(scenarioId)) {
@@ -422,11 +623,26 @@ export async function POST(request: NextRequest) {
       )
         ? pageNumbers
         : null;
+    if (model && !isValidScenarioImageModelId(model)) {
+      return NextResponse.json(
+        { error: `사용할 수 없는 이미지 모델: ${model}` },
+        { status: 400 }
+      );
+    }
+
+    const modelId = model ?? DEFAULT_SCENARIO_IMAGE_MODEL_ID;
+    const modelConfig = findScenarioImageModel(modelId);
+    if (!modelConfig) {
+      return NextResponse.json(
+        { error: `알 수 없는 이미지 모델: ${modelId}` },
+        { status: 400 }
+      );
+    }
 
     console.log(
-      `[ILL] 배치 시작: ${scenarioId} ${gender} pages=${pages ? pages.join(",") : "ALL"}`
+      `[ILL] 배치 시작: ${scenarioId} ${gender} pages=${pages ? pages.join(",") : "ALL"} model=${modelId}`
     );
-    generateBatch(scenarioId, gender, pages).catch((err) => {
+    generateBatch(scenarioId, gender, pages, modelConfig).catch((err) => {
       console.error(`[ILL:${gender}] ${scenarioId} 배치 실패:`, err);
     });
 

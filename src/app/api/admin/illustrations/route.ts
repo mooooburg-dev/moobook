@@ -124,7 +124,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * PATCH /api/admin/illustrations
- * body: { scenarioId, pageNumber, gender, action: 'approve' | 'reject' | 'reset' }
+ * body:
+ * - { scenarioId, pageNumber, gender, action: 'approve' | 'reject' | 'reset' }
+ * - { scenarioId, gender, action: 'stop-generating' }
  */
 export async function PATCH(request: NextRequest) {
   if (!(await verifyAdmin())) {
@@ -133,6 +135,30 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const { scenarioId, pageNumber, gender, action } = await request.json();
+
+    if (action === "stop-generating") {
+      if (!scenarioId || !isValidGender(gender)) {
+        return NextResponse.json({ error: "잘못된 요청" }, { status: 400 });
+      }
+
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from("moobook_scenario_illustrations")
+        .update({ status: "pending", updated_at: new Date().toISOString() })
+        .eq("scenario_id", scenarioId)
+        .eq("gender", gender)
+        .eq("status", "generating")
+        .select("page_number");
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        stopped: data?.length ?? 0,
+      });
+    }
 
     if (
       !scenarioId ||

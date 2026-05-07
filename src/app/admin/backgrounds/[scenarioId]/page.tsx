@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { BookOpen, ChevronLeft, Loader2, RefreshCcw } from "lucide-react";
+import { BookOpen, ChevronLeft, Loader2, RefreshCcw, Square } from "lucide-react";
 import { toast } from "sonner";
 
 import { scenarios, type PresetThemeId } from "@/lib/scenarios";
@@ -15,9 +15,22 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_SCENARIO_IMAGE_MODEL_ID,
+  findScenarioImageModel,
+  SCENARIO_IMAGE_MODELS,
+} from "@/lib/scenario-image-models";
 import type { ChildGender, IllustrationStatus, ScenarioIllustration } from "@/types";
 
 const statusBadge: Record<
@@ -59,6 +72,9 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+const GENERATION_START_GRACE_MS = 120_000;
+const GENERATION_POLL_TIMEOUT_MS = 15 * 60_000;
+
 export default function AdminBackgroundDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -71,6 +87,9 @@ export default function AdminBackgroundDetailPage() {
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [modelId, setModelId] = useState<string>(
+    DEFAULT_SCENARIO_IMAGE_MODEL_ID
+  );
 
   const fetchData = useCallback(async () => {
     try {
@@ -124,19 +143,74 @@ export default function AdminBackgroundDetailPage() {
   // 사용자가 이 탭에서 명시적으로 배치를 시작했음을 나타내는 단기 플래그.
   // 서버가 첫 upsert 할 때까지의 공백을 커버하기 위함. 첫 generating 감지되면 해제.
   const [justStarted, setJustStarted] = useState(false);
+  const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(
+    null
+  );
+  const [pollTimedOut, setPollTimedOut] = useState(false);
+  const hasPostStartTerminalUpdate = useMemo(() => {
+    if (generationStartedAt === null) return false;
+    return currentRows.some((row) => {
+      if (row.status === "generating") return false;
+      return new Date(row.updated_at).getTime() >= generationStartedAt;
+    });
+  }, [currentRows, generationStartedAt]);
 
   // 서버 상태 기반 "진행 중" 판정:
   // generating 상태 레코드가 있으면 배치 진행 중으로 간주.
   // justStarted는 사용자가 막 배치를 시작한 뒤 첫 generating upsert 전까지의 공백을 커버한다.
-  const isBatchInProgress = hasGenerating || justStarted;
+  const isBatchInProgress = (hasGenerating || justStarted) && !pollTimedOut;
   const shouldPoll = isBatchInProgress;
 
   useEffect(() => {
-    // 첫 generating이 감지되면 justStarted 해제
     if (justStarted && hasGenerating) {
       setJustStarted(false);
     }
   }, [justStarted, hasGenerating]);
+
+  useEffect(() => {
+    if (hasGenerating && generationStartedAt === null) {
+      setGenerationStartedAt(Date.now());
+      setPollTimedOut(false);
+    }
+  }, [hasGenerating, generationStartedAt]);
+
+  useEffect(() => {
+    if (justStarted && hasPostStartTerminalUpdate) {
+      setJustStarted(false);
+      setGenerationStartedAt(null);
+      setPollTimedOut(false);
+    }
+  }, [justStarted, hasPostStartTerminalUpdate]);
+
+  useEffect(() => {
+    if (!justStarted || hasGenerating || generationStartedAt === null) return;
+    const elapsed = Date.now() - generationStartedAt;
+    if (elapsed >= GENERATION_START_GRACE_MS) {
+      setJustStarted(false);
+      return;
+    }
+    const timeout = setTimeout(() => {
+      setJustStarted(false);
+    }, GENERATION_START_GRACE_MS - elapsed);
+    return () => clearTimeout(timeout);
+  }, [justStarted, hasGenerating, generationStartedAt]);
+
+  useEffect(() => {
+    if (!shouldPoll || generationStartedAt === null) return;
+    const elapsed = Date.now() - generationStartedAt;
+    if (elapsed >= GENERATION_POLL_TIMEOUT_MS) {
+      setJustStarted(false);
+      setPollTimedOut(true);
+      toast.error("생성 상태 확인 시간이 초과됐어요. 새로고침 후 상태를 확인해 주세요.");
+      return;
+    }
+    const timeout = setTimeout(() => {
+      setJustStarted(false);
+      setPollTimedOut(true);
+      toast.error("생성 상태 확인 시간이 초과됐어요. 새로고침 후 상태를 확인해 주세요.");
+    }, GENERATION_POLL_TIMEOUT_MS - elapsed);
+    return () => clearTimeout(timeout);
+  }, [shouldPoll, generationStartedAt]);
 
   useEffect(() => {
     if (!shouldPoll) return;
@@ -181,11 +255,13 @@ export default function AdminBackgroundDetailPage() {
       const res = await fetch("/api/admin/generate-illustrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarioId, gender }),
+        body: JSON.stringify({ scenarioId, gender, model: modelId }),
       });
       if (!res.ok) throw new Error("실패");
       toast.success(`${gender === "boy" ? "남아" : "여아"} 전체 생성 시작`);
       setJustStarted(true);
+      setGenerationStartedAt(Date.now());
+      setPollTimedOut(false);
       fetchData();
     } catch {
       toast.error("요청 실패");
@@ -204,16 +280,44 @@ export default function AdminBackgroundDetailPage() {
           scenarioId,
           gender,
           pageNumbers: [pageNumber],
+          model: modelId,
         }),
       });
       if (!res.ok) throw new Error("실패");
       toast.success(`${pageNumber}페이지 재생성 시작`);
       setJustStarted(true);
+      setGenerationStartedAt(Date.now());
+      setPollTimedOut(false);
       fetchData();
     } catch {
       toast.error("요청 실패");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleStopGeneration = async () => {
+    setBatchLoading(true);
+    try {
+      const res = await fetch("/api/admin/illustrations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scenarioId,
+          gender,
+          action: "stop-generating",
+        }),
+      });
+      if (!res.ok) throw new Error("실패");
+      setJustStarted(false);
+      setGenerationStartedAt(null);
+      setPollTimedOut(true);
+      toast.success("생성 상태 확인을 중지했어요");
+      fetchData();
+    } catch {
+      toast.error("생성 중지 실패");
+    } finally {
+      setBatchLoading(false);
     }
   };
 
@@ -319,6 +423,39 @@ export default function AdminBackgroundDetailPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-2">
+                <Label
+                  htmlFor="scenario-image-model"
+                  className="text-xs text-muted-foreground"
+                >
+                  이미지 모델
+                </Label>
+                <Select
+                  value={modelId}
+                  onValueChange={setModelId}
+                  disabled={batchLoading || isBatchInProgress}
+                >
+                  <SelectTrigger
+                    id="scenario-image-model"
+                    size="sm"
+                    className="w-[190px]"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SCENARIO_IMAGE_MODELS.map((m) => (
+                      <SelectItem
+                        key={m.id}
+                        value={m.id}
+                        disabled={m.disabled}
+                      >
+                        {m.label}
+                        {m.disabled && " (비활성)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Button
                 size="sm"
                 onClick={handleGenerateAll}
@@ -331,6 +468,17 @@ export default function AdminBackgroundDetailPage() {
                 )}
                 {gender === "boy" ? "남아" : "여아"} 전체 생성
               </Button>
+              {isBatchInProgress && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleStopGeneration}
+                  disabled={batchLoading}
+                >
+                  <Square className="size-4" />
+                  생성 중지
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -343,7 +491,43 @@ export default function AdminBackgroundDetailPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="sm:hidden space-y-1.5">
+              <Label
+                htmlFor="scenario-image-model-mobile"
+                className="text-xs text-muted-foreground"
+              >
+                이미지 모델
+              </Label>
+              <Select
+                value={modelId}
+                onValueChange={setModelId}
+                disabled={batchLoading || isBatchInProgress}
+              >
+                <SelectTrigger
+                  id="scenario-image-model-mobile"
+                  size="sm"
+                  className="w-full"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SCENARIO_IMAGE_MODELS.map((m) => (
+                    <SelectItem
+                      key={m.id}
+                      value={m.id}
+                      disabled={m.disabled}
+                    >
+                      {m.label}
+                      {m.disabled && " (비활성)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {findScenarioImageModel(modelId)?.description ?? ""}
+            </p>
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>
                 승인 {stats.approved} · 완료 {stats.completed} · 생성중{" "}
@@ -439,6 +623,12 @@ export default function AdminBackgroundDetailPage() {
                   <p className="text-xs text-muted-foreground line-clamp-2">
                     {page.sceneDescription}
                   </p>
+                  {row?.image_model && (
+                    <p className="text-[10px] text-muted-foreground">
+                      {findScenarioImageModel(row.image_model)?.label ??
+                        row.image_model}
+                    </p>
+                  )}
                   {isFirstPage && (
                     <p className="text-[10px] text-amber-700 bg-amber-50 rounded px-2 py-1 leading-snug">
                       ⚠️ 1페이지를 재생성하면 2~12페이지도 다시 생성해야

@@ -100,6 +100,7 @@ export interface ScenarioIllustration {
   status: IllustrationStatus;
   prompt_used: string | null;
   session_id: string | null;
+  image_model: string | null;
   created_at: string;
   updated_at: string;
 }
