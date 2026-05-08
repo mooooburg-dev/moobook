@@ -1,14 +1,21 @@
 import type { ChildGender, Scenario, ScenarioPage, ThemeId } from "@/types";
 import {
-  generateImageWithReferences,
   isGeminiMockMode,
   PLACEHOLDER_IMAGE,
-  type GeminiImageResult,
 } from "@/lib/gemini";
-import { buildSinglePageRegenerationPrompt } from "@/lib/scenarios/character-prompts";
+import {
+  buildAnchoredPagePrompt,
+  buildSinglePageRegenerationPrompt,
+} from "@/lib/scenarios/character-prompts";
 import { swapFace } from "@/lib/replicate";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadImageBuffer } from "@/lib/storage/upload-image";
+import {
+  generateImageWithModel,
+  type GenerateImageResult,
+  type ImageReference,
+} from "@/lib/image-generators";
+import { getDefaultImageModel } from "@/lib/openai-image";
 
 const MOCK_MODE = isGeminiMockMode();
 
@@ -22,6 +29,8 @@ const MOCK_IMAGES = Array.from({ length: 12 }, (_, i) =>
 
 const BOOK_BUCKET = "moobook_photos";
 
+const FACE_SWAP_ENABLED = process.env.ENABLE_FACE_SWAP === "true";
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 interface GeneratePagesInput {
@@ -30,6 +39,10 @@ interface GeneratePagesInput {
   childName: string;
   bookId: string;
   gender: ChildGender;
+  /** 부모가 선택한 일러스트 anchor. 없으면 photoUrl을 anchor로 fallback (기존 books 호환) */
+  anchorFaceUrl?: string | null;
+  /** book별 모델 (없으면 env/기본 chain 사용) */
+  imageModel?: string | null;
 }
 
 function bookPagePath(bookId: string, pageNumber: number) {
@@ -39,7 +52,7 @@ function bookPagePath(bookId: string, pageNumber: number) {
 async function persistIllustration(
   bookId: string,
   pageNumber: number,
-  image: GeminiImageResult
+  image: GenerateImageResult
 ): Promise<string> {
   const supabase = createAdminClient();
   return uploadImageBuffer(supabase, {
@@ -51,41 +64,79 @@ async function persistIllustration(
   });
 }
 
-/**
- * 단일 페이지 이미지 생성 (Gemini 일러스트 → Replicate face-swap)
- * Step 1: Gemini로 아이 사진 기반 일러스트 생성
- * Step 2: Replicate codeplugtech/face-swap으로 얼굴 합성
- * Step 2 실패 시 Step 1 결과로 fallback
- */
+function buildReferences(
+  anchorUrl: string | null | undefined,
+  photoUrl: string
+): { references: ImageReference[]; hasPhotoReference: boolean; isAnchorMissing: boolean } {
+  if (anchorUrl) {
+    // anchor + 대표 원본 1장 (Codex 피드백 3번)
+    return {
+      references: [
+        { url: anchorUrl, name: "anchor" },
+        { url: photoUrl, name: "primary-photo" },
+      ],
+      hasPhotoReference: true,
+      isAnchorMissing: false,
+    };
+  }
+  // 기존 books 호환 — anchor 없으면 photo 단독
+  return {
+    references: [{ url: photoUrl, name: "primary-photo" }],
+    hasPhotoReference: false,
+    isAnchorMissing: true,
+  };
+}
+
 async function generateSinglePage(
   page: ScenarioPage,
   photoUrl: string,
   bookId: string,
   scenarioId: ThemeId,
-  gender: ChildGender
+  gender: ChildGender,
+  anchorFaceUrl: string | null | undefined,
+  imageModel: string
 ): Promise<string> {
   const tag = `[Pipeline] p${page.pageNumber} (${bookId.slice(0, 8)})`;
-  const prompt = buildSinglePageRegenerationPrompt(scenarioId, page, gender);
+  const { references, hasPhotoReference, isAnchorMissing } = buildReferences(
+    anchorFaceUrl,
+    photoUrl
+  );
+
+  // anchor가 있으면 anchor-based prompt, 없으면 기존 single-page regeneration prompt
+  const prompt = isAnchorMissing
+    ? buildSinglePageRegenerationPrompt(scenarioId, page, gender)
+    : buildAnchoredPagePrompt(scenarioId, page, gender, hasPhotoReference);
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      console.log(`${tag} 생성 시작 (시도 ${attempt + 1}/3)`);
-
-      const image = await generateImageWithReferences(
-        prompt,
-        [{ url: photoUrl }],
-        { tag, pageNumber: page.pageNumber, appendStyle: false }
+      console.log(
+        `${tag} 생성 시작 (시도 ${attempt + 1}/3, model=${imageModel}, anchor=${!isAnchorMissing})`
       );
+
+      const image = await generateImageWithModel({
+        prompt,
+        references,
+        size: "1024x1536",
+        quality: "high",
+        modelId: imageModel,
+        tag,
+        pageNumber: page.pageNumber,
+      });
 
       const illustrationUrl = await persistIllustration(
         bookId,
         page.pageNumber,
         image
       );
-      console.log(`${tag} [Step1] 일러스트 업로드 완료`);
+      console.log(`${tag} [Step1] 일러스트 업로드 완료 (model=${image.modelUsed})`);
+
+      if (!FACE_SWAP_ENABLED) {
+        console.log(`${tag} 완료 (face-swap 비활성)`);
+        return illustrationUrl;
+      }
 
       const finalUrl = await swapFace(illustrationUrl, photoUrl, tag);
-      console.log(`${tag} 완료`);
+      console.log(`${tag} 완료 (face-swap 적용)`);
       return finalUrl;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -101,19 +152,21 @@ async function generateSinglePage(
   return PLACEHOLDER_IMAGE(page.pageNumber);
 }
 
-export async function generatePreviewPages({
-  photoUrl,
-  scenario,
-  bookId,
-  gender,
-}: GeneratePagesInput): Promise<string[]> {
+function resolveModel(input: GeneratePagesInput): string {
+  return input.imageModel ?? getDefaultImageModel();
+}
+
+export async function generatePreviewPages(
+  input: GeneratePagesInput
+): Promise<string[]> {
   if (MOCK_MODE) {
-    console.log(`[MOCK] mock 이미지 반환 (bookId: ${bookId})`);
+    console.log(`[MOCK] mock 이미지 반환 (bookId: ${input.bookId})`);
     return MOCK_IMAGES.slice(0, 3);
   }
 
-  const previewPages = scenario.pages.slice(0, 3);
+  const previewPages = input.scenario.pages.slice(0, 3);
   const imageUrls: string[] = [];
+  const model = resolveModel(input);
   let generated = 0;
 
   for (let i = 0; i < previewPages.length; i++) {
@@ -126,10 +179,12 @@ export async function generatePreviewPages({
     } else {
       const url = await generateSinglePage(
         page,
-        photoUrl,
-        bookId,
-        scenario.id,
-        gender
+        input.photoUrl,
+        input.bookId,
+        input.scenario.id,
+        input.gender,
+        input.anchorFaceUrl,
+        model
       );
       imageUrls.push(url);
       generated++;
@@ -142,18 +197,16 @@ export async function generatePreviewPages({
   return imageUrls;
 }
 
-export async function generateRemainingPages({
-  photoUrl,
-  scenario,
-  bookId,
-  gender,
-}: GeneratePagesInput): Promise<string[]> {
+export async function generateRemainingPages(
+  input: GeneratePagesInput
+): Promise<string[]> {
   if (MOCK_MODE) {
-    return MOCK_IMAGES.slice(3, scenario.pages.length);
+    return MOCK_IMAGES.slice(3, input.scenario.pages.length);
   }
 
-  const remainingPages = scenario.pages.slice(3);
+  const remainingPages = input.scenario.pages.slice(3);
   const imageUrls: string[] = [];
+  const model = resolveModel(input);
   const alreadyGenerated =
     DEV_PAGE_LIMIT !== null ? Math.min(3, DEV_PAGE_LIMIT) : 0;
   let generated = alreadyGenerated;
@@ -167,10 +220,12 @@ export async function generateRemainingPages({
     } else {
       const url = await generateSinglePage(
         page,
-        photoUrl,
-        bookId,
-        scenario.id,
-        gender
+        input.photoUrl,
+        input.bookId,
+        input.scenario.id,
+        input.gender,
+        input.anchorFaceUrl,
+        model
       );
       imageUrls.push(url);
       generated++;
