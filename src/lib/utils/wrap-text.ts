@@ -39,17 +39,35 @@ interface Break {
   hard: boolean;
 }
 
+/**
+ * 종결 부호 뒤에 묶일 수 있는 닫힘 부호류 (따옴표/괄호 등).
+ * 공백은 의도적으로 제외 — 공백을 묶으면 직후의 다음 문장 시작이 직전 줄로
+ * 끌려 들어와 \"...뛰어왔어요. \" 처럼 어색한 조합이 생긴다.
+ */
+const TRAILING_CLOSERS = new Set([
+  '"',
+  "'",
+  ")",
+  "]",
+  "}",
+  "”",
+  "’",
+  "》",
+  "」",
+  "』",
+]);
+
 function findCandidateBreaks(text: string): Break[] {
   const breaks: Break[] = [];
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    // "어요." 처럼 종결 부호 뒤에 추가 부호/따옴표가 이어지는 경우 함께 묶는다.
+    // "어요." 처럼 종결 부호 뒤에 닫힘 따옴표/괄호가 직접 이어지면 함께 묶는다.
+    // 공백 등은 묶지 않는다 — 그 다음은 새 문장이거나 여는 따옴표일 가능성이 큼.
     if (FORCE_BREAK_AFTER.has(ch)) {
       let end = i + 1;
       while (
         end < text.length &&
-        (FORCE_BREAK_AFTER.has(text[end]) ||
-          SOFT_BREAK_AFTER.has(text[end]))
+        (FORCE_BREAK_AFTER.has(text[end]) || TRAILING_CLOSERS.has(text[end]))
       ) {
         end++;
       }
@@ -107,6 +125,13 @@ export function wrapTextWithCanvas(
         // 종결 부호 — 강제 줄바꿈
         lines.push(candidate.replace(/\s+$/, ""));
         lineStart = candidateEnd;
+        // 다음 라인의 시작이 공백이면 건너뛴다 (선두 공백 방지)
+        while (
+          lineStart < paragraph.length &&
+          (paragraph[lineStart] === " " || paragraph[lineStart] === "\t")
+        ) {
+          lineStart++;
+        }
         lastSoftBreak = -1;
         continue;
       }
