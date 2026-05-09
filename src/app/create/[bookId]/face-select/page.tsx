@@ -27,7 +27,9 @@ interface CandidatesResponse {
 }
 
 const POLL_INTERVAL_MS = 3000;
-// 사용자에게 "오래 걸려요" 안내를 띄우는 임계 (Codex 피드백 #5).
+// 진행 바 끝나고도 결과가 안 오면 "서버가 아직 작업 중" 안내 (Codex 라운드4 #12).
+const SLOW_NOTICE_THRESHOLD_MS = 50 * 1000;
+// "오래 걸려요" + 재시도 버튼 노출 임계 (Codex 라운드2 #5).
 // 백엔드 lease TTL(6분)보다 짧게 잡아 UI에서 먼저 stuck을 인지할 수 있게.
 const SLOW_THRESHOLD_MS = 90 * 1000;
 
@@ -246,6 +248,13 @@ export default function FaceSelectPage() {
               {Math.round(waitingMs / 1000)}초 / 약 50초
             </p>
           </div>
+
+          {waitingMs > SLOW_NOTICE_THRESHOLD_MS &&
+            waitingMs <= SLOW_THRESHOLD_MS && (
+              <div className="mt-4 text-xs text-text-light">
+                서버가 아직 작업 중이에요. 중복 생성을 막고 안전하게 마무리하는 중입니다.
+              </div>
+            )}
 
           {waitingMs > SLOW_THRESHOLD_MS && (
             <div className="mt-5 pt-5 border-t border-brand/20">

@@ -211,6 +211,16 @@ body {
   animation: float 4s ease-in-out infinite;
 }
 
+/* 진행 바 indeterminate shimmer — 진행률이 0% 근처에 머무르는 동안 살아있는 느낌 */
+@keyframes progress-shimmer {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(400%); }
+}
+
+.animate-progress-shimmer {
+  animation: progress-shimmer 1.6s linear infinite;
+}
+
 /* 리본 뱃지 */
 .ribbon-badge {
   position: absolute;
