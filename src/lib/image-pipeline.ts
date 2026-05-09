@@ -51,6 +51,11 @@ interface GeneratePagesInput {
   anchorFaceUrl?: string | null;
   /** book별 모델 (없으면 env/기본 chain 사용) */
   imageModel?: string | null;
+  /**
+   * 페이지 한 장이 완료될 때마다 호출 — incremental UI 업데이트용.
+   * pageNumber는 1-based (시나리오 page index와 같음).
+   */
+  onPageDone?: (pageNumber: number, url: string) => void | Promise<void>;
 }
 
 function bookPagePath(bookId: string, pageNumber: number) {
@@ -183,7 +188,9 @@ export async function generatePreviewPages(
       console.log(
         `[DEV] DEV_PAGE_LIMIT(${DEV_PAGE_LIMIT}) 도달, p${page.pageNumber} placeholder`
       );
-      imageUrls.push(PLACEHOLDER_IMAGE(page.pageNumber));
+      const placeholder = PLACEHOLDER_IMAGE(page.pageNumber);
+      imageUrls.push(placeholder);
+      await input.onPageDone?.(page.pageNumber, placeholder);
     } else {
       const url = await generateSinglePage(
         page,
@@ -196,6 +203,7 @@ export async function generatePreviewPages(
       );
       imageUrls.push(url);
       generated++;
+      await input.onPageDone?.(page.pageNumber, url);
       if (i < previewPages.length - 1) {
         await sleep(2000);
       }
@@ -226,7 +234,9 @@ export async function generateRemainingPages(
   for (let i = 0; i < remainingPages.length; i++) {
     const page = remainingPages[i];
     if (DEV_PAGE_LIMIT !== null && generated >= DEV_PAGE_LIMIT) {
-      imageUrls.push(PLACEHOLDER_IMAGE(page.pageNumber));
+      const placeholder = PLACEHOLDER_IMAGE(page.pageNumber);
+      imageUrls.push(placeholder);
+      await input.onPageDone?.(page.pageNumber, placeholder);
     } else {
       const url = await generateSinglePage(
         page,
@@ -239,6 +249,7 @@ export async function generateRemainingPages(
       );
       imageUrls.push(url);
       generated++;
+      await input.onPageDone?.(page.pageNumber, url);
       if (i < remainingPages.length - 1) {
         await sleep(2000);
       }

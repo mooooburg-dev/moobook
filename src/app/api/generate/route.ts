@@ -8,6 +8,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePhotos } from "@/lib/face-candidates/service";
 import type { Book } from "@/types";
 
+/**
+ * 사용자에게 무료로 노출하는 미리보기 페이지 수.
+ * BookPreview의 잠금 오버레이가 마지막 페이지에서 켜지도록, 이 만큼만
+ * preview_pages 컬럼에 저장해 클라이언트에 노출한다. 나머지는 all_pages로만.
+ */
+const PUBLIC_PREVIEW_LIMIT = 3;
+
 export const maxDuration = 300;
 
 const ALLOWED_START_STATUSES = ["pending", "faces_ready"] as const;
@@ -80,6 +87,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ bookId, status: book.status });
     }
 
+    // 페이지 한 장 끝날 때마다 DB에 incremental 반영.
+    // - preview_pages: 처음 PUBLIC_PREVIEW_LIMIT 장까지만 누적
+    // - all_pages: 모든 장 누적 (결제 후 노출)
+    const completed = new Map<number, string>();
+    const persistProgress = async (pageNumber: number, url: string) => {
+      completed.set(pageNumber, url);
+      const sortedUrls = Array.from(completed.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, u]) => u);
+      const previewSlice = sortedUrls.slice(0, PUBLIC_PREVIEW_LIMIT);
+      try {
+        await supabase
+          .from("moobook_books")
+          .update({
+            preview_pages: previewSlice,
+            all_pages: sortedUrls,
+          })
+          .eq("id", bookId);
+      } catch (err) {
+        console.error(
+          `[백그라운드] p${pageNumber} 진행 업데이트 실패 (bookId: ${bookId}):`,
+          err
+        );
+      }
+    };
+
     const generateInput = {
       photoUrl,
       scenario,
@@ -88,17 +121,15 @@ export async function POST(request: NextRequest) {
       gender: (book.child_gender ?? "boy") as "boy" | "girl",
       anchorFaceUrl: book.anchor_face_url ?? null,
       imageModel: book.image_model ?? null,
+      onPageDone: persistProgress,
     };
 
-    // 1단계: preview 3페이지 생성 (동기)
+    // 1단계: preview(현재 1장) 동기 생성. onPageDone 으로 preview_pages가 즉시 채워짐.
     const previewUrls = await generatePreviewPages(generateInput);
 
     const { error: previewUpdateError } = await supabase
       .from("moobook_books")
-      .update({
-        preview_pages: previewUrls,
-        status: "preview_ready",
-      })
+      .update({ status: "preview_ready" })
       .eq("id", bookId);
 
     if (previewUpdateError) {
@@ -109,25 +140,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2단계: 나머지 9페이지 백그라운드 생성
+    // 2단계: 나머지 페이지 백그라운드 생성. 각 페이지 완료마다 preview_pages가
+    // 3장까지 자동으로 채워지고, all_pages는 12장까지 누적된다.
     generateRemainingPages(generateInput)
-      .then(async (remainingUrls) => {
-        const allPages = [...previewUrls, ...remainingUrls];
-        const { error: updateError } = await supabase
-          .from("moobook_books")
-          .update({ all_pages: allPages })
-          .eq("id", bookId);
-
-        if (updateError) {
-          console.error(
-            `[백그라운드] all_pages 업데이트 실패 (bookId: ${bookId}):`,
-            updateError
-          );
-        } else {
-          console.log(
-            `[백그라운드] 전체 ${allPages.length}페이지 생성 완료 (bookId: ${bookId})`
-          );
-        }
+      .then((remainingUrls) => {
+        console.log(
+          `[백그라운드] 전체 ${previewUrls.length + remainingUrls.length}페이지 생성 완료 (bookId: ${bookId})`
+        );
       })
       .catch((err) => {
         console.error(

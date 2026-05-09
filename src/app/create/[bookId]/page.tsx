@@ -91,16 +91,19 @@ export default function BookDetailPage() {
     init();
   }, [fetchBook, router]);
 
-  // 폴링 (preview_ready/paid 도달 전까지 3초)
+  // 폴링 — preview_pages 가 3장이 되거나 paid 가 되기 전까지 3초 간격.
+  // (preview_ready 진입 후에도 백그라운드가 추가 페이지를 채우므로 계속 폴링)
   const bookStatus = book?.status;
+  const previewCount = book?.preview_pages?.length ?? 0;
   useEffect(() => {
     if (!bookStatus) return;
-    if (bookStatus === "preview_ready" || bookStatus === "paid") return;
+    if (bookStatus === "paid") return;
     if (FACE_SELECT_STATUSES.includes(bookStatus)) return;
+    if (previewCount >= 3) return;
 
     const interval = setInterval(fetchBook, 3000);
     return () => clearInterval(interval);
-  }, [bookStatus, fetchBook]);
+  }, [bookStatus, previewCount, fetchBook]);
 
   const isReady = book?.status === "preview_ready" || book?.status === "paid";
   const showLoading = !initialLoaded || !isReady;
