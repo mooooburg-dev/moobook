@@ -29,6 +29,14 @@ const MOCK_IMAGES = Array.from({ length: 12 }, (_, i) =>
 
 const BOOK_BUCKET = "moobook_photos";
 
+/**
+ * /api/generate 응답까지 동기로 생성할 preview 페이지 수.
+ * 1로 둔 이유: dev/serverless 환경에서 동기 응답 대기 시간을 줄여
+ * 라우트 핸들러가 timeout/abort에 노출되는 윈도우를 좁힌다.
+ * 나머지 페이지는 응답 후 백그라운드로 진행되며 클라이언트가 폴링으로 받음.
+ */
+export const PREVIEW_PAGE_COUNT = 1;
+
 const FACE_SWAP_ENABLED = process.env.ENABLE_FACE_SWAP === "true";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -43,6 +51,11 @@ interface GeneratePagesInput {
   anchorFaceUrl?: string | null;
   /** book별 모델 (없으면 env/기본 chain 사용) */
   imageModel?: string | null;
+  /**
+   * 페이지 한 장이 완료될 때마다 호출 — incremental UI 업데이트용.
+   * pageNumber는 1-based (시나리오 page index와 같음).
+   */
+  onPageDone?: (pageNumber: number, url: string) => void | Promise<void>;
 }
 
 function bookPagePath(bookId: string, pageNumber: number) {
@@ -85,6 +98,34 @@ function buildReferences(
     hasPhotoReference: false,
     isAnchorMissing: true,
   };
+}
+
+export interface GenerateOnePageInput {
+  page: ScenarioPage;
+  photoUrl: string;
+  bookId: string;
+  scenarioId: ThemeId;
+  gender: ChildGender;
+  anchorFaceUrl?: string | null;
+  imageModel: string;
+}
+
+/**
+ * 단일 페이지 생성 (외부 호출용 래퍼).
+ * polling-driven 페이지 생성 서비스에서 사용.
+ */
+export async function generateOnePage(
+  input: GenerateOnePageInput
+): Promise<string> {
+  return generateSinglePage(
+    input.page,
+    input.photoUrl,
+    input.bookId,
+    input.scenarioId,
+    input.gender,
+    input.anchorFaceUrl,
+    input.imageModel
+  );
 }
 
 async function generateSinglePage(
@@ -161,10 +202,10 @@ export async function generatePreviewPages(
 ): Promise<string[]> {
   if (MOCK_MODE) {
     console.log(`[MOCK] mock 이미지 반환 (bookId: ${input.bookId})`);
-    return MOCK_IMAGES.slice(0, 3);
+    return MOCK_IMAGES.slice(0, PREVIEW_PAGE_COUNT);
   }
 
-  const previewPages = input.scenario.pages.slice(0, 3);
+  const previewPages = input.scenario.pages.slice(0, PREVIEW_PAGE_COUNT);
   const imageUrls: string[] = [];
   const model = resolveModel(input);
   let generated = 0;
@@ -175,7 +216,9 @@ export async function generatePreviewPages(
       console.log(
         `[DEV] DEV_PAGE_LIMIT(${DEV_PAGE_LIMIT}) 도달, p${page.pageNumber} placeholder`
       );
-      imageUrls.push(PLACEHOLDER_IMAGE(page.pageNumber));
+      const placeholder = PLACEHOLDER_IMAGE(page.pageNumber);
+      imageUrls.push(placeholder);
+      await input.onPageDone?.(page.pageNumber, placeholder);
     } else {
       const url = await generateSinglePage(
         page,
@@ -188,6 +231,7 @@ export async function generatePreviewPages(
       );
       imageUrls.push(url);
       generated++;
+      await input.onPageDone?.(page.pageNumber, url);
       if (i < previewPages.length - 1) {
         await sleep(2000);
       }
@@ -201,14 +245,16 @@ export async function generateRemainingPages(
   input: GeneratePagesInput
 ): Promise<string[]> {
   if (MOCK_MODE) {
-    return MOCK_IMAGES.slice(3, input.scenario.pages.length);
+    return MOCK_IMAGES.slice(PREVIEW_PAGE_COUNT, input.scenario.pages.length);
   }
 
-  const remainingPages = input.scenario.pages.slice(3);
+  const remainingPages = input.scenario.pages.slice(PREVIEW_PAGE_COUNT);
   const imageUrls: string[] = [];
   const model = resolveModel(input);
   const alreadyGenerated =
-    DEV_PAGE_LIMIT !== null ? Math.min(3, DEV_PAGE_LIMIT) : 0;
+    DEV_PAGE_LIMIT !== null
+      ? Math.min(PREVIEW_PAGE_COUNT, DEV_PAGE_LIMIT)
+      : 0;
   let generated = alreadyGenerated;
 
   await sleep(2000);
@@ -216,7 +262,9 @@ export async function generateRemainingPages(
   for (let i = 0; i < remainingPages.length; i++) {
     const page = remainingPages[i];
     if (DEV_PAGE_LIMIT !== null && generated >= DEV_PAGE_LIMIT) {
-      imageUrls.push(PLACEHOLDER_IMAGE(page.pageNumber));
+      const placeholder = PLACEHOLDER_IMAGE(page.pageNumber);
+      imageUrls.push(placeholder);
+      await input.onPageDone?.(page.pageNumber, placeholder);
     } else {
       const url = await generateSinglePage(
         page,
@@ -229,6 +277,7 @@ export async function generateRemainingPages(
       );
       imageUrls.push(url);
       generated++;
+      await input.onPageDone?.(page.pageNumber, url);
       if (i < remainingPages.length - 1) {
         await sleep(2000);
       }

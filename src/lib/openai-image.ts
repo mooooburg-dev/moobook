@@ -1,5 +1,17 @@
 import OpenAI, { APIError, toFile } from "openai";
 import type { ImageEditParamsNonStreaming } from "openai/resources/images";
+import sharp from "sharp";
+
+/**
+ * OpenAI Images API 입력 제약을 만족하도록 이미지를 정규화한다.
+ * - EXIF orientation 적용해 raw bitmap 회전 (`rotate()`)
+ * - 가장 긴 변을 NORMALIZE_MAX_EDGE 이하로 축소
+ * - alpha 채널 제거 + JPEG 80% quality 로 재인코딩
+ *
+ * iPhone 사진 (5712x4284, 4MB+) 등이 OpenAI에서 "Invalid image file or mode"
+ * 거절되는 케이스를 막기 위함.
+ */
+const NORMALIZE_MAX_EDGE = 2048;
 
 /**
  * 동작 검증된 모델만 화이트리스트로 둔다.
@@ -56,7 +68,13 @@ function getClient(): OpenAI {
 }
 
 /**
- * URL → OpenAI 호환 File 객체. face-test/route.ts:85 에서 추출.
+ * URL → OpenAI 호환 File 객체. raw 응답을 sharp로 normalize/resize해서 보낸다.
+ *
+ * 왜 normalize 하는가:
+ *   iPhone 등 모바일 카메라 사진은 EXIF orientation 메타와 함께 5712x4284 같은 큰
+ *   해상도로 들어옴. OpenAI Images API가 "400 Invalid image file or mode" 로 거절
+ *   하거나 회전이 어긋난 채로 합성될 수 있음. sharp `.rotate()` 가 EXIF orientation을
+ *   raw pixel 으로 적용해 정규화하고, `.resize()` 로 dimension을 안전 범위로 줄인다.
  */
 export async function fetchAsBlobPart(url: string, fallbackName: string) {
   const res = await fetch(url);
@@ -64,14 +82,35 @@ export async function fetchAsBlobPart(url: string, fallbackName: string) {
     throw new Error(`이미지 fetch 실패 (${fallbackName}): ${res.status}`);
   }
   const arrayBuffer = await res.arrayBuffer();
-  const contentType = res.headers.get("content-type") ?? "image/png";
-  const ext = contentType.includes("jpeg")
-    ? "jpg"
-    : contentType.includes("webp")
-      ? "webp"
-      : "png";
-  const filename = `${fallbackName}.${ext}`;
-  return toFile(Buffer.from(arrayBuffer), filename, { type: contentType });
+  const sourceBuffer = Buffer.from(arrayBuffer);
+
+  try {
+    const normalized = await sharp(sourceBuffer)
+      .rotate() // EXIF orientation 적용
+      .resize({
+        width: NORMALIZE_MAX_EDGE,
+        height: NORMALIZE_MAX_EDGE,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .flatten({ background: { r: 255, g: 255, b: 255 } }) // alpha 제거
+      .jpeg({ quality: 90, mozjpeg: true })
+      .toBuffer();
+
+    return toFile(normalized, `${fallbackName}.jpg`, { type: "image/jpeg" });
+  } catch (err) {
+    console.warn(
+      `[openai-image] sharp normalize 실패 (${fallbackName}), 원본 그대로 사용:`,
+      err
+    );
+    const contentType = res.headers.get("content-type") ?? "image/png";
+    const ext = contentType.includes("jpeg")
+      ? "jpg"
+      : contentType.includes("webp")
+        ? "webp"
+        : "png";
+    return toFile(sourceBuffer, `${fallbackName}.${ext}`, { type: contentType });
+  }
 }
 
 export interface EditOptions {
