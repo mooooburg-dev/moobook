@@ -43,13 +43,19 @@ export default function BookPreview({
     return () => observer.disconnect();
   }, []);
 
-  const isLockedPage =
-    locked && currentPage >= pages.length - 1 && pages.length < totalPages;
+  // 결제 전이고 전체 페이지보다 미리보기가 적으면, 미리보기 마지막 다음에
+  // "잠금 안내" 가상 페이지를 한 장 더 추가한다. 이렇게 하면 1~N 미리보기는
+  // 깨끗하게 노출되고 (N+1)번째에서 잠금 화면이 나타난다.
+  const showLockOverlayPage = locked && pages.length < totalPages;
+  const totalDisplayPages = pages.length + (showLockOverlayPage ? 1 : 0);
+  const isLockedPage = showLockOverlayPage && currentPage === pages.length;
 
-  const current = pages[currentPage];
-  const resolvedText = current?.text
-    ? replaceChildName(current.text, childName?.trim() || "주인공")
-    : null;
+  // 잠금 페이지에서는 마지막 미리보기 이미지를 배경으로 사용 (블러 처리)
+  const current = isLockedPage ? pages[pages.length - 1] : pages[currentPage];
+  const resolvedText =
+    !isLockedPage && current?.text
+      ? replaceChildName(current.text, childName?.trim() || "주인공")
+      : null;
 
   // PDF 생성기와 동일한 알고리즘으로 줄바꿈. 컨테이너 폭 - 좌우 padding 만큼만 한 줄에.
   const wrappedLines = useMemo(() => {
@@ -76,7 +82,7 @@ export default function BookPreview({
               src={current.imageUrl}
               alt={`페이지 ${currentPage + 1}`}
               fill
-              className="object-cover"
+              className={`object-cover ${isLockedPage ? "scale-110 blur-md" : ""}`}
               sizes="(max-width: 512px) 100vw, 512px"
             />
           ) : (
@@ -135,14 +141,20 @@ export default function BookPreview({
           className="text-sm text-text-light"
           style={{ fontFamily: "var(--font-heading)" }}
         >
-          {currentPage + 1} /{" "}
-          {locked ? `${pages.length} (전체 ${totalPages})` : pages.length}
+          {isLockedPage ? (
+            <>미리보기 끝</>
+          ) : (
+            <>
+              {currentPage + 1} /{" "}
+              {locked ? `${pages.length} (전체 ${totalPages})` : pages.length}
+            </>
+          )}
         </span>
 
         <Button
           variant="outline"
           size="sm"
-          disabled={currentPage >= pages.length - 1}
+          disabled={currentPage >= totalDisplayPages - 1}
           onClick={() => setCurrentPage((p) => p + 1)}
         >
           다음 ▶
