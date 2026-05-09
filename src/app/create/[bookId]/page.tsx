@@ -25,6 +25,7 @@ export default function BookDetailPage() {
   const [initialLoaded, setInitialLoaded] = useState(false);
   const redirectedToFaceSelect = useRef(false);
   const pageLoopActiveRef = useRef(false);
+  const [shouldRunLoop, setShouldRunLoop] = useState(false);
 
   const fetchBook = useCallback(async () => {
     const supabase = createClient();
@@ -77,22 +78,24 @@ export default function BookDetailPage() {
       }
 
       setInitialLoaded(true);
+      // 본문 페이지 생성 루프 시작 — 이 effect 가 한 번 트리거되고,
+      // 루프 자체는 별도 effect 에서 bookId 단위로만 dep 를 잡는다.
+      if (
+        bookData.status !== "paid" &&
+        (bookData.all_pages?.length ?? 0) < 12
+      ) {
+        setShouldRunLoop(true);
+      }
     }
     init();
   }, [fetchBook, router]);
 
   // polling-driven 페이지 생성 루프.
-  // 미생성 페이지가 있으면 /api/generate 호출 → 응답 후 fetchBook → 반복.
-  // 12장 다 차거나 paid 면 종료.
+  // dep 를 bookId / shouldRunLoop 로만 잡아 book 객체 변화(예: all_pages 1장 증가)에는
+  // cleanup 되지 않는다. cleanup 은 unmount 또는 bookId 변경 시에만 일어남 (Codex #2).
   useEffect(() => {
-    if (!book) return;
-    if (FACE_SELECT_STATUSES.includes(book.status)) return;
-    if (book.status === "paid") return;
+    if (!shouldRunLoop) return;
     if (pageLoopActiveRef.current) return;
-
-    const totalPages = 12;
-    const allCount = book.all_pages?.length ?? 0;
-    if (allCount >= totalPages) return;
 
     pageLoopActiveRef.current = true;
     let cancelled = false;
@@ -106,7 +109,6 @@ export default function BookDetailPage() {
             body: JSON.stringify({ bookId: params.bookId }),
           });
           if (!res.ok) {
-            // 일시 오류 — 짧게 대기 후 재시도
             await new Promise((r) => setTimeout(r, 3000));
             continue;
           }
@@ -116,15 +118,22 @@ export default function BookDetailPage() {
             generated?: { pageNumber: number; url: string };
             completedPages?: number;
             totalPages?: number;
+            retryAfterMs?: number;
           };
+          // 결과를 받아 DB 갱신 — fetchBook 으로 UI 동기화
           await fetchBook();
           if (data.done) break;
           if (data.busy) {
-            await new Promise((r) => setTimeout(r, PAGE_GEN_INTERVAL_MS));
+            const wait = data.retryAfterMs ?? PAGE_GEN_INTERVAL_MS;
+            await new Promise((r) => setTimeout(r, wait));
             continue;
           }
-          if (data.completedPages && data.totalPages) {
-            if (data.completedPages >= data.totalPages) break;
+          if (
+            typeof data.completedPages === "number" &&
+            typeof data.totalPages === "number" &&
+            data.completedPages >= data.totalPages
+          ) {
+            break;
           }
           await new Promise((r) => setTimeout(r, PAGE_GEN_INTERVAL_MS));
         } catch (err) {
@@ -140,7 +149,7 @@ export default function BookDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [book, params.bookId, fetchBook]);
+  }, [shouldRunLoop, params.bookId, fetchBook]);
 
   if (error) {
     return (
@@ -154,7 +163,10 @@ export default function BookDetailPage() {
 
   const previewCount = book?.preview_pages?.length ?? 0;
   const allCount = book?.all_pages?.length ?? 0;
-  const showLoading = !initialLoaded || previewCount === 0;
+  const totalPages = 12;
+  const allPagesReady = allCount >= totalPages;
+  // preview_pages 가 3장 이상 차야 미리보기 화면 진입 (Codex #7)
+  const showLoading = !initialLoaded || previewCount < 3;
 
   if (!book || showLoading) {
     return (
@@ -202,12 +214,23 @@ export default function BookDetailPage() {
       })()}
 
       <div className="mt-10 text-center">
-        <Button
-          size="lg"
-          onClick={() => router.push(`/create/${params.bookId}/checkout`)}
-        >
-          📚 전체 동화책 구매하기
-        </Button>
+        {allPagesReady ? (
+          <Button
+            size="lg"
+            onClick={() => router.push(`/create/${params.bookId}/checkout`)}
+          >
+            📚 전체 동화책 구매하기
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <Button size="lg" disabled>
+              📚 동화책 만드는 중... ({allCount} / {totalPages})
+            </Button>
+            <p className="text-xs text-text-light">
+              남은 페이지는 자동으로 만들어지고 있어요. 잠시 후 결제할 수 있어요.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -27,6 +27,10 @@ export interface NextPageResult {
   done?: boolean;
   /** 다른 워커가 진행 중이라 우리는 락을 못 잡았다 — 클라이언트는 잠시 후 재시도 */
   busy?: boolean;
+  /** 우리가 생성한 결과가 다른 워커의 lease 에 의해 폐기됐다 (orphan storage 가능) */
+  staleResultDiscarded?: boolean;
+  /** busy 일 때 클라이언트가 다음 폴링까지 기다릴 권장 시간 */
+  retryAfterMs?: number;
   totalPages: number;
   completedPages: number;
   status: BookStatus;
@@ -94,6 +98,15 @@ export async function generateNextPage(
     };
   }
 
+  // busy 응답 시 클라이언트가 다음 폴링까지 기다릴 권장 시간 계산
+  const computeRetryAfter = (lease: PageLease | null): number => {
+    if (!lease?.leaseUntil) return 3000;
+    const remaining = new Date(lease.leaseUntil).getTime() - Date.now();
+    if (remaining <= 0) return 1000; // 곧 만료 → 짧게 폴링해 회수
+    if (remaining < 5000) return 1000;
+    return Math.min(5000, remaining);
+  };
+
   const photos = resolvePhotos(book);
   const primary = photos.find((p) => p.isPrimary) ?? photos[0];
   const photoUrl = primary?.url ?? book.photo_url ?? null;
@@ -115,6 +128,7 @@ export async function generateNextPage(
   if (!canTakeLease) {
     return {
       busy: true,
+      retryAfterMs: computeRetryAfter(currentLease),
       totalPages,
       completedPages,
       status: book.status,
@@ -152,8 +166,18 @@ export async function generateNextPage(
   }
   const { data: locked } = await query.select("id").maybeSingle();
   if (!locked) {
+    // 거의 동시에 다른 워커가 lease 를 set 한 케이스. 그 lease 기준으로 retry 안내.
+    const { data: refreshed } = await supabase
+      .from("moobook_books")
+      .select("page_generation_lease")
+      .eq("id", bookId)
+      .single();
     return {
       busy: true,
+      retryAfterMs: computeRetryAfter(
+        (refreshed as { page_generation_lease?: PageLease | null } | null)
+          ?.page_generation_lease ?? null
+      ),
       totalPages,
       completedPages,
       status: book.status,
@@ -172,12 +196,15 @@ export async function generateNextPage(
     imageModel,
   });
 
-  // 결과 반영: all_pages append + preview_pages 처음 N장 한정 동기화 + lease 해제
-  // 다른 워커가 동시 진행하지 않도록 attemptId 일치 조건도 같이.
+  // 결과 반영: all_pages append + preview_pages 처음 N장 한정 동기화 + lease 해제.
+  // 다른 워커가 동시 진행하지 않도록 attemptId 일치 조건. update 결과를 select 로
+  // 확인해 우리가 실제로 반영했는지 검증한다 (Codex #1).
   const newAllPages = [...allPages, url];
   const PUBLIC_PREVIEW_LIMIT = 3;
   const newPreviewPages = newAllPages.slice(0, PUBLIC_PREVIEW_LIMIT);
-  const reachedPreviewReady = newPreviewPages.length >= 1;
+  // preview_ready 는 최소 PUBLIC_PREVIEW_LIMIT 장 채워진 후에 진입.
+  // (Codex #7: 1장 만으로 결제 CTA 가 노출되지 않게)
+  const reachedPreviewReady = newAllPages.length >= PUBLIC_PREVIEW_LIMIT;
 
   const update: Record<string, unknown> = {
     all_pages: newAllPages,
@@ -188,19 +215,54 @@ export async function generateNextPage(
     update.status = "preview_ready";
   }
 
-  await supabase
+  const { data: applied } = await supabase
     .from("moobook_books")
     .update(update)
     .eq("id", bookId)
-    .eq("page_generation_lease->>attemptId", newLease.attemptId);
+    .eq("page_generation_lease->>attemptId", newLease.attemptId)
+    .select("all_pages,status")
+    .maybeSingle();
+
+  if (!applied) {
+    // 우리 lease 가 만료/교체돼서 update 가 통과 못 함 — 결과는 폐기.
+    // 방금 업로드한 페이지 이미지가 orphan 으로 남으니 정리 시도.
+    const orphanPath = url.split("/moobook_photos/")[1];
+    if (orphanPath) {
+      try {
+        await supabase.storage.from("moobook_photos").remove([orphanPath]);
+      } catch (err) {
+        console.warn(
+          "[page-generation] orphan storage 정리 실패:",
+          orphanPath,
+          err
+        );
+      }
+    }
+    // fresh state 로 응답
+    const { data: fresh } = await supabase
+      .from("moobook_books")
+      .select("status, all_pages")
+      .eq("id", bookId)
+      .single();
+    const freshAll = (fresh?.all_pages as string[] | null) ?? newAllPages;
+    return {
+      staleResultDiscarded: true,
+      totalPages,
+      completedPages: freshAll.length,
+      status: (fresh?.status as BookStatus) ?? book.status,
+    };
+  }
+
+  const appliedAllPages =
+    ((applied as { all_pages?: string[] | null }).all_pages as string[] | null) ??
+    newAllPages;
+  const appliedStatus =
+    ((applied as { status?: BookStatus }).status as BookStatus) ?? book.status;
 
   return {
     generated: { pageNumber: nextPageNumber, url },
     totalPages,
-    completedPages: newAllPages.length,
-    status:
-      reachedPreviewReady && book.status === "generating"
-        ? "preview_ready"
-        : book.status,
+    completedPages: appliedAllPages.length,
+    status: appliedStatus,
   };
 }
