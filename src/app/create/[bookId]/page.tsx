@@ -69,8 +69,12 @@ export default function BookDetailPage() {
 
       setInitialLoaded(true);
 
-      // 레거시 흐름: pending 상태면 즉시 본문 생성 트리거 (기존 books 호환)
-      if (bookData.status === "pending" && !generateTriggered.current) {
+      // 본문 생성 트리거는 이 페이지가 책임진다. 새 흐름(faces_ready)과
+      // 레거시(pending) 둘 다 허용. 백엔드 conditional update로 중복 호출 안전.
+      if (
+        (bookData.status === "pending" || bookData.status === "faces_ready") &&
+        !generateTriggered.current
+      ) {
         generateTriggered.current = true;
         fetch("/api/generate", {
           method: "POST",

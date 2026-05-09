@@ -29,6 +29,14 @@ const MOCK_IMAGES = Array.from({ length: 12 }, (_, i) =>
 
 const BOOK_BUCKET = "moobook_photos";
 
+/**
+ * /api/generate 응답까지 동기로 생성할 preview 페이지 수.
+ * 1로 둔 이유: dev/serverless 환경에서 동기 응답 대기 시간을 줄여
+ * 라우트 핸들러가 timeout/abort에 노출되는 윈도우를 좁힌다.
+ * 나머지 페이지는 응답 후 백그라운드로 진행되며 클라이언트가 폴링으로 받음.
+ */
+export const PREVIEW_PAGE_COUNT = 1;
+
 const FACE_SWAP_ENABLED = process.env.ENABLE_FACE_SWAP === "true";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -161,10 +169,10 @@ export async function generatePreviewPages(
 ): Promise<string[]> {
   if (MOCK_MODE) {
     console.log(`[MOCK] mock 이미지 반환 (bookId: ${input.bookId})`);
-    return MOCK_IMAGES.slice(0, 3);
+    return MOCK_IMAGES.slice(0, PREVIEW_PAGE_COUNT);
   }
 
-  const previewPages = input.scenario.pages.slice(0, 3);
+  const previewPages = input.scenario.pages.slice(0, PREVIEW_PAGE_COUNT);
   const imageUrls: string[] = [];
   const model = resolveModel(input);
   let generated = 0;
@@ -201,14 +209,16 @@ export async function generateRemainingPages(
   input: GeneratePagesInput
 ): Promise<string[]> {
   if (MOCK_MODE) {
-    return MOCK_IMAGES.slice(3, input.scenario.pages.length);
+    return MOCK_IMAGES.slice(PREVIEW_PAGE_COUNT, input.scenario.pages.length);
   }
 
-  const remainingPages = input.scenario.pages.slice(3);
+  const remainingPages = input.scenario.pages.slice(PREVIEW_PAGE_COUNT);
   const imageUrls: string[] = [];
   const model = resolveModel(input);
   const alreadyGenerated =
-    DEV_PAGE_LIMIT !== null ? Math.min(3, DEV_PAGE_LIMIT) : 0;
+    DEV_PAGE_LIMIT !== null
+      ? Math.min(PREVIEW_PAGE_COUNT, DEV_PAGE_LIMIT)
+      : 0;
   let generated = alreadyGenerated;
 
   await sleep(2000);

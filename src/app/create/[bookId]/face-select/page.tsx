@@ -157,13 +157,9 @@ export default function FaceSelectPage() {
         throw new Error(err.error || "anchor 선택 실패");
       }
 
-      // 본문 생성 트리거 (fire-and-forget) — /create/[bookId] 페이지에서 폴링
-      fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookId: params.bookId, theme: "from-db" }),
-      }).catch(() => undefined);
-
+      // 본문 생성 트리거는 /create/[bookId] 페이지가 마운트 시 책임진다.
+      // navigation 직전 fire-and-forget fetch는 dev에서 abort되는 사례가 있어
+      // face-candidates와 동일하게 책임을 다음 페이지로 일원화.
       router.push(`/create/${params.bookId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "오류가 발생했습니다.");
