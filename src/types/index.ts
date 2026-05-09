@@ -1,11 +1,38 @@
 export type BookStatus =
   | "pending"
+  | "faces_generating"
+  | "faces_ready"
+  | "faces_failed"
   | "generating"
   | "preview_ready"
   | "paid"
   | "printing"
   | "shipped"
   | "completed";
+
+export interface PhotoAsset {
+  url: string;
+  order: number;
+  isPrimary: boolean;
+  uploadedAt: string;
+  faceValidation?: { valid: boolean; reason?: string };
+}
+
+export interface FaceCandidateMetadata {
+  model: string;
+  prompt: string;
+  variantHints: string[];
+  sourcePhotoUrls: string[];
+  attempts: number;
+  createdAt: string;
+}
+
+export interface AnchorMetadata {
+  selectedAt: string;
+  candidateIndex: number;
+  model: string;
+  quality: "low" | "medium" | "high";
+}
 
 export type ThemeId =
   | "forest-adventure"
@@ -36,6 +63,12 @@ export interface Book {
   child_age: number | null;
   child_gender: ChildGender;
   photo_url: string;
+  photos: PhotoAsset[] | null;
+  face_candidate_urls: string[] | null;
+  face_candidate_metadata: FaceCandidateMetadata | null;
+  anchor_face_url: string | null;
+  anchor_metadata: AnchorMetadata | null;
+  image_model: string | null;
   preview_pages: string[] | null;
   all_pages: string[] | null;
   pdf_url: string | null;

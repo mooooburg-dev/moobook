@@ -2,19 +2,59 @@ import type { ChildGender, ScenarioPage, ThemeId } from "@/types";
 
 type PresetScenarioId = Exclude<ThemeId, "custom">;
 
+const CHARACTER_OUTFIT: Record<ChildGender, string> = {
+  boy: "a light blue short-sleeve cotton t-shirt, beige knee-length shorts, and white sneakers (summer outfit)",
+  girl: "a soft pink short-sleeve blouse, a light floral pattern skirt above the knee, and white sandals (summer outfit)",
+};
+
+/**
+ * 인종/외형 prior를 직접 박지 않는다 (Codex 4번 피드백). 사진 reference에서
+ * 실제 아이의 얼굴 특징을 그대로 가져와야 하므로, "Korean child"처럼 일반화된
+ * 외형 prior는 reference fidelity를 약화시킨다.
+ */
 const CHARACTER_APPEARANCE: Record<ChildGender, string> = {
-  boy: "a cute 5-year-old Korean boy with short brown hair, round big eyes, rosy cheeks, wearing a light blue short-sleeve cotton t-shirt, beige knee-length shorts, and white sneakers (summer outfit)",
-  girl: "a cute 5-year-old Korean girl with shoulder-length brown hair tied with a small pink hair pin, round big eyes, rosy cheeks, wearing a soft pink short-sleeve blouse, a light floral pattern skirt above the knee, and white sandals (summer outfit)",
+  boy: `a cute 5-year-old child (boy) wearing ${CHARACTER_OUTFIT.boy}. Preserve the child's actual facial features, skin tone, hair color, and hairstyle from the reference photos exactly — do not stereotype or alter the child's identity.`,
+  girl: `a cute 5-year-old child (girl) wearing ${CHARACTER_OUTFIT.girl}. Preserve the child's actual facial features, skin tone, hair color, and hairstyle from the reference photos exactly — do not stereotype or alter the child's identity.`,
 };
 
 const STYLE_RULES =
-  "Art style: warm watercolor children's book illustration, soft pastel colors, gentle lighting, storybook atmosphere, consistent art style across every page, no text, no words, no letters, no captions, portrait orientation with a 3:4 aspect ratio (768x1024).";
+  "Art style: warm watercolor children's book illustration, soft pastel colors, gentle lighting, storybook atmosphere, consistent art style across every page, no text, no words, no letters, no captions, portrait orientation.";
 
+// 레거시 (Gemini chat 세션 priming 경로에서만 사용). 본문 anchor 흐름은 SCENE_MODE 사용.
 const COMPOSITION_RULES =
-  "Composition: wide establishing shot showing the full scene with rich environmental detail. The child character is small within the frame (around 25-35% of the image height), fully visible from head to toe, never cropped. The background, environment, and supporting characters take up most of the frame. Never use close-up, portrait, or bust shots — always show the entire scene with the child as part of it.";
+  "Composition: wide establishing shot, the child fully visible from head to toe at around 30% of frame height, rich environment around them.";
 
 const COVER_COMPOSITION_RULES =
-  "Cover composition: this image will be used as a book cover with a title overlaid across the top 40% of the frame. Place the child character in the LOWER HALF of the image (roughly between 55% and 95% of the frame height), with the child's head and face BELOW the vertical midline. The TOP 40% of the frame must be a calm, uncluttered background area (open sky, tree canopy, distant scenery, or soft atmosphere) with no faces, no important subjects, and no high-contrast detail — this space is reserved for the title text. Keep the child fully visible from head to toe. Do not render any text, letters, or title in the image itself.";
+  "Cover composition: book cover layout — child in the LOWER HALF (head/face below midline), top 40% calm uncluttered background (sky/canopy/atmosphere) reserved for title overlay. Child fully visible head to toe. No text in the image itself.";
+
+/**
+ * Anchor 기반 본문 prompt 전용 scene mode.
+ * 페이지 종류에 따라 짧은 한 줄로 composition을 지정해 prompt 길이 폭주를 막는다 (Codex #4).
+ * - cover: 제목 오버레이 영역을 비움
+ * - establishing: 배경 강조 와이드샷
+ * - medium: 캐릭터 중심, 얼굴 유사도 우선
+ */
+type SceneMode = "cover" | "establishing" | "medium";
+
+const SCENE_MODE_RULES: Record<SceneMode, string> = {
+  cover:
+    "Composition: cover layout — child in the lower half, top 40% calm sky/atmosphere for title overlay. No text in image.",
+  establishing:
+    "Composition: wide scene with rich environment, child fully visible at roughly 35-45% of frame height.",
+  medium:
+    "Composition: medium shot, child upper-body to mid-thigh visible, face clearly readable, soft environmental backdrop.",
+};
+
+/**
+ * 페이지 번호 → scene mode 결정.
+ * 1페이지(커버)와 클라이맥스 페이지(10~11)는 medium으로 얼굴 유사도 강조.
+ * 그 외는 establishing.
+ */
+function pickSceneMode(pageNumber: number): SceneMode {
+  if (pageNumber === 1) return "cover";
+  if (pageNumber === 10 || pageNumber === 11) return "medium";
+  return "establishing";
+}
 
 const PAGE_ACTIONS: Record<PresetScenarioId, Record<number, string>> = {
   "forest-adventure": {
@@ -249,6 +289,64 @@ export function buildSinglePageRegenerationPrompt(
     "Match the character in the reference image exactly — same face, same hair, same outfit, same art style.",
     STYLE_RULES,
     isCover ? COVER_COMPOSITION_RULES : COMPOSITION_RULES,
+    `Page ${page.pageNumber}: ${action}`,
+  ].join(" ");
+}
+
+const SAFETY_RULES =
+  "Output must be a clearly stylized children's book illustration — never a photorealistic image of a real child. Use watercolor/cartoon rendering, soft shapes, and gentle stylization.";
+
+/**
+ * 얼굴 후보 생성용 프롬프트.
+ * reference photo(s)를 받아 동일 정면 반신 구도의 일러스트화된 얼굴 후보를 만든다.
+ * variant hint는 얼굴 차이가 아니라 일러스트 해석(선/팔레트)의 미세 변화만 유도.
+ */
+export function buildFaceCandidatePrompt(
+  gender: ChildGender,
+  variantHint: string
+): string {
+  const outfit = CHARACTER_OUTFIT[gender];
+  return [
+    "Priority order (highest first):",
+    "1. Identity: faithfully match the child's face from the reference photo(s) — eye shape, nose, mouth proportions, skin tone, hair color and hairstyle. The first reference photo is the primary identity reference.",
+    "2. Style: warm watercolor children's book illustration, soft pastel colors, gentle storybook atmosphere.",
+    "3. Composition: front-facing half-body portrait, plain warm pastel background, no props, no text, no logos.",
+    `Render the character as a 5-year-old child wearing ${outfit}.`,
+    "Preserve the child's actual ethnicity, skin tone, and hair naturally — do not stereotype or alter identity.",
+    SAFETY_RULES,
+    `Variant hint (style only, never alter face): ${variantHint}.`,
+  ].join(" ");
+}
+
+/**
+ * Anchor 기반 본문 페이지 생성 프롬프트.
+ * 첫 reference는 anchor 일러스트(canonical character design),
+ * 두 번째 reference(있다면)는 원본 사진 1장(identity verification only).
+ *
+ * Codex 피드백 #4 반영: prompt 길이를 줄이고 composition 충돌을 제거.
+ * - "child small at 25-35%" 같이 얼굴 유사도와 충돌하는 룰 제거
+ * - aspect ratio (768x1024) 박힌 표현 제거 (실제 호출은 1024x1536)
+ * - 외형 priming은 anchor에 위임. outfit/style 반복 지시 제거.
+ * - scene mode로 짧게 분기 (cover / establishing / medium)
+ */
+export function buildAnchoredPagePrompt(
+  scenarioId: ThemeId,
+  page: ScenarioPage,
+  _gender: ChildGender,
+  hasPhotoReference: boolean
+): string {
+  void _gender;
+  const action = getActionDescription(scenarioId, page);
+  const sceneMode = pickSceneMode(page.pageNumber);
+  const referenceRoles = hasPhotoReference
+    ? "First reference = illustrated anchor (canonical character design — match face, hair, outfit, art style). Second reference = real photo (preserve identity features only — do NOT copy its pose, lighting, or clothing)."
+    : "Reference = illustrated anchor — match its face, hair, outfit, and art style exactly.";
+  return [
+    "Priority: 1) Identity — same face/hair/outfit as the anchor. 2) Style — warm watercolor children's book illustration consistent with the anchor. 3) Scene — render the action below.",
+    referenceRoles,
+    SCENE_MODE_RULES[sceneMode],
+    "No text, no words, no letters in the image.",
+    SAFETY_RULES,
     `Page ${page.pageNumber}: ${action}`,
   ].join(" ");
 }
