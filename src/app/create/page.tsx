@@ -107,11 +107,14 @@ export default function CreatePage() {
         }
       }
 
-      // 4. 얼굴 후보 생성을 fire-and-forget으로 트리거 (face-select 페이지에서도 확인)
+      // 4. 얼굴 후보 생성 트리거.
+      // keepalive: true로 router.push 직후 navigation이 fetch를 abort하지 않도록 함.
+      // (그래도 face-select 페이지가 마운트되면 보강 트리거가 한 번 더 호출됨 — 백엔드에서 멱등 처리)
       fetch("/api/face-candidates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bookId: book.id }),
+        keepalive: true,
       }).catch((err) => {
         console.error("얼굴 후보 트리거 실패:", err);
       });

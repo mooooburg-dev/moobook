@@ -81,9 +81,29 @@ export async function loadBook(bookId: string): Promise<Book | null> {
 }
 
 /**
+ * stale `faces_generating` 자동 회수 임계 (ms).
+ * 이 시간보다 오래 진행 중이면 죽은 작업으로 보고 회수 가능.
+ * Vercel maxDuration이 300s라 그보다 살짝 큰 값으로.
+ */
+const STALE_GENERATING_MS = 6 * 60 * 1000;
+
+function isStaleGenerating(book: Book): boolean {
+  if (book.status !== "faces_generating") return false;
+  // 진행 흔적이 있다면 그 시각 기준, 없으면 created_at 기준 (insert 직후 stuck 케이스)
+  const startedAt =
+    (book.face_candidate_metadata as { createdAt?: string } | null)
+      ?.createdAt ?? book.created_at;
+  if (!startedAt) return true;
+  const ageMs = Date.now() - new Date(startedAt).getTime();
+  return ageMs > STALE_GENERATING_MS;
+}
+
+/**
  * Codex #1 반영: conditional update로 race condition 제거.
- * 허용된 시작 상태(`pending`/`faces_failed`/force=true 시 `faces_ready`)에서만
- * `faces_generating`으로 atomic 전환. 선점 실패 시 현재 상태를 분석해서 분기.
+ * 허용된 시작 상태에서만 `faces_generating`으로 atomic 전환.
+ * - 일반 호출: pending / faces_failed
+ * - force=true: 위 + faces_ready + stale faces_generating(>6분)
+ * 선점 실패 시 현재 상태를 분석해서 분기.
  */
 export async function acquireFaceCandidatesLock(
   bookId: string,
@@ -109,6 +129,26 @@ export async function acquireFaceCandidatesLock(
 
   const current = await loadBook(bookId);
   if (!current) return { kind: "not_found" };
+
+  // 강제 회수: faces_generating이지만 stale인 경우
+  if (
+    (options.force || isStaleGenerating(current)) &&
+    current.status === "faces_generating"
+  ) {
+    const { data: reclaimed } = await supabase
+      .from("moobook_books")
+      .update({ status: "faces_generating" })
+      .eq("id", bookId)
+      .eq("status", "faces_generating")
+      .select("*")
+      .maybeSingle();
+    if (reclaimed) {
+      console.warn(
+        `[face-candidates] stuck faces_generating 회수: bookId=${bookId}`
+      );
+      return { kind: "locked", book: reclaimed as Book };
+    }
+  }
 
   if (
     current.status === "faces_ready" &&
