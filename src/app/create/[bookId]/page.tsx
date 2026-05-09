@@ -9,12 +9,6 @@ import { createClient } from "@/lib/supabase/client";
 import { resolveScenario } from "@/lib/scenarios";
 import type { Book } from "@/types";
 
-const FACE_SELECT_STATUSES: Book["status"][] = [
-  "faces_generating",
-  "faces_ready",
-  "faces_failed",
-];
-
 const PAGE_GEN_INTERVAL_MS = 1000;
 
 export default function BookDetailPage() {
@@ -59,19 +53,19 @@ export default function BookDetailPage() {
     return newBook;
   }, [params.bookId]);
 
-  // 진행 상태 분기 + face-select redirect
+  // 진행 상태 분기 + face-select redirect.
+  // anchor 가 아직 없으면 face-select 로 보낸다. status 가 faces_* 라도 anchor
+  // 가 이미 있으면 (= 사용자가 방금 선택을 끝낸 케이스) redirect 하지 않는다.
   useEffect(() => {
     async function init() {
       const bookData = await fetchBook();
       if (!bookData) return;
 
-      const isNewFlow =
-        (bookData.photos?.length ?? 0) > 0 && !bookData.anchor_face_url;
+      const hasAnchor = !!bookData.anchor_face_url;
+      const hasPhotos = (bookData.photos?.length ?? 0) > 0;
+      const needsFaceSelect = hasPhotos && !hasAnchor;
 
-      if (
-        !redirectedToFaceSelect.current &&
-        (isNewFlow || FACE_SELECT_STATUSES.includes(bookData.status))
-      ) {
+      if (!redirectedToFaceSelect.current && needsFaceSelect) {
         redirectedToFaceSelect.current = true;
         router.replace(`/create/${bookData.id}/face-select`);
         return;
