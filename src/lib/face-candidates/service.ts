@@ -1,3 +1,5 @@
+import { APIError } from "openai";
+
 import {
   editImageWithFallback,
   getDefaultImageModel,
@@ -9,7 +11,9 @@ import type {
   AnchorMetadata,
   Book,
   ChildGender,
+  FaceCandidateError,
   FaceCandidateMetadata,
+  FaceGenerationLease,
   PhotoAsset,
 } from "@/types";
 
@@ -17,17 +21,21 @@ const FACE_BUCKET = "moobook_photos";
 const FACE_PREFIX = "face-candidates";
 const TARGET_COUNT = 3;
 
-/**
- * 얼굴이 아닌 일러스트 해석만 살짝 다르게 유도하는 hint들 (Codex #2).
- */
 const VARIANT_HINTS = [
   "slightly softer linework with a clean storybook look",
   "slightly more rounded storybook style with warm rosy tones",
   "slightly brighter palette with crisp watercolor edges",
 ];
 
+/**
+ * lease 만료 시간. 워커가 살아있다고 보는 최대 작업 시간.
+ * Vercel maxDuration이 300s라서 그보다 살짝 큰 값.
+ * Codex 피드백 #4/#7: created_at 기반 stale 판정은 부정확하므로 lock 시점에 명시 기록.
+ */
+const LEASE_TTL_MS = 6 * 60 * 1000;
+
 export type CandidateLockResult =
-  | { kind: "locked"; book: Book }
+  | { kind: "locked"; book: Book; lease: FaceGenerationLease }
   | { kind: "in_progress"; book: Book }
   | { kind: "ready"; book: Book }
   | { kind: "not_found" };
@@ -51,9 +59,6 @@ export function orderedPhotoUrls(photos: PhotoAsset[]): string[] {
   return [primary.url, ...rest.map((p) => p.url)];
 }
 
-/**
- * Codex #6 반영: photo_url만 있는 기존 books도 photos 형태로 정상화해서 읽는다.
- */
 export function resolvePhotos(book: Book): PhotoAsset[] {
   if (book.photos && book.photos.length > 0) return book.photos;
   if (book.photo_url) {
@@ -80,30 +85,28 @@ export async function loadBook(bookId: string): Promise<Book | null> {
   return data as Book;
 }
 
-/**
- * stale `faces_generating` 자동 회수 임계 (ms).
- * 이 시간보다 오래 진행 중이면 죽은 작업으로 보고 회수 가능.
- * Vercel maxDuration이 300s라 그보다 살짝 큰 값으로.
- */
-const STALE_GENERATING_MS = 6 * 60 * 1000;
+function isLeaseExpired(lease: FaceGenerationLease | null): boolean {
+  if (!lease?.leaseUntil) return true;
+  return new Date(lease.leaseUntil).getTime() <= Date.now();
+}
 
-function isStaleGenerating(book: Book): boolean {
-  if (book.status !== "faces_generating") return false;
-  // 진행 흔적이 있다면 그 시각 기준, 없으면 created_at 기준 (insert 직후 stuck 케이스)
-  const startedAt =
-    (book.face_candidate_metadata as { createdAt?: string } | null)
-      ?.createdAt ?? book.created_at;
-  if (!startedAt) return true;
-  const ageMs = Date.now() - new Date(startedAt).getTime();
-  return ageMs > STALE_GENERATING_MS;
+function buildLease(previousAttempt = 0): FaceGenerationLease {
+  const now = Date.now();
+  return {
+    startedAt: new Date(now).toISOString(),
+    leaseUntil: new Date(now + LEASE_TTL_MS).toISOString(),
+    attemptId: crypto.randomUUID(),
+    attempt: previousAttempt + 1,
+  };
 }
 
 /**
- * Codex #1 반영: conditional update로 race condition 제거.
- * 허용된 시작 상태에서만 `faces_generating`으로 atomic 전환.
- * - 일반 호출: pending / faces_failed
- * - force=true: 위 + faces_ready + stale faces_generating(>6분)
- * 선점 실패 시 현재 상태를 분석해서 분기.
+ * Codex 피드백 #4/#7 반영: lock 획득 시 lease를 명시 기록한다.
+ * - 정상 시작 상태(pending/faces_failed): 락 + 새 lease
+ * - force=true: 위 + faces_ready (재생성)
+ * - faces_generating + lease 만료: stuck으로 보고 회수, 새 attemptId로 lease 갱신
+ *
+ * "lease 만료" 판정은 lease.leaseUntil < now 만 본다 (created_at 휴리스틱 X).
  */
 export async function acquireFaceCandidatesLock(
   bookId: string,
@@ -115,38 +118,63 @@ export async function acquireFaceCandidatesLock(
     ? ["pending", "faces_failed", "faces_ready"]
     : ["pending", "faces_failed"];
 
+  // 1차: 정상 시작 상태에서 락 + 새 lease 기록
+  const freshLease = buildLease();
   const { data: locked } = await supabase
     .from("moobook_books")
-    .update({ status: "faces_generating" })
+    .update({
+      status: "faces_generating",
+      face_generation_lease: freshLease,
+    })
     .eq("id", bookId)
     .in("status", allowedStarts)
     .select("*")
     .maybeSingle();
 
   if (locked) {
-    return { kind: "locked", book: locked as Book };
+    return { kind: "locked", book: locked as Book, lease: freshLease };
   }
 
   const current = await loadBook(bookId);
   if (!current) return { kind: "not_found" };
 
-  // 강제 회수: faces_generating이지만 stale인 경우
-  if (
-    (options.force || isStaleGenerating(current)) &&
-    current.status === "faces_generating"
-  ) {
-    const { data: reclaimed } = await supabase
-      .from("moobook_books")
-      .update({ status: "faces_generating" })
-      .eq("id", bookId)
-      .eq("status", "faces_generating")
-      .select("*")
-      .maybeSingle();
-    if (reclaimed) {
-      console.warn(
-        `[face-candidates] stuck faces_generating 회수: bookId=${bookId}`
-      );
-      return { kind: "locked", book: reclaimed as Book };
+  // 2차: faces_generating에 lease 만료 또는 force일 때 회수
+  if (current.status === "faces_generating") {
+    const expired = isLeaseExpired(current.face_generation_lease);
+    if (options.force || expired) {
+      const previousAttempt = current.face_generation_lease?.attempt ?? 0;
+      const reclaimedLease = buildLease(previousAttempt);
+
+      // attemptId 가 동일한 row에서만 회수 (다른 워커가 막 lease를 갱신했으면 통과 안 함)
+      let query = supabase
+        .from("moobook_books")
+        .update({
+          status: "faces_generating",
+          face_generation_lease: reclaimedLease,
+        })
+        .eq("id", bookId)
+        .eq("status", "faces_generating");
+
+      if (current.face_generation_lease?.attemptId) {
+        query = query.eq(
+          "face_generation_lease->>attemptId",
+          current.face_generation_lease.attemptId
+        );
+      }
+
+      const { data: reclaimed } = await query.select("*").maybeSingle();
+      if (reclaimed) {
+        console.warn(
+          `[face-candidates] lease 만료 회수: bookId=${bookId} prevAttempt=${previousAttempt} reason=${
+            options.force ? "force" : "stale"
+          }`
+        );
+        return {
+          kind: "locked",
+          book: reclaimed as Book,
+          lease: reclaimedLease,
+        };
+      }
     }
   }
 
@@ -164,11 +192,33 @@ interface RunOptions {
   gender: ChildGender;
   photos: PhotoAsset[];
   preferredModel?: string | null;
+  /** acquireFaceCandidatesLock 으로 받은 lease — attemptId/attempt 기록용 */
+  lease: FaceGenerationLease;
 }
 
 export interface RunResult {
   candidateUrls: string[];
   metadata: FaceCandidateMetadata;
+}
+
+/**
+ * Codex 피드백 #13: OpenAI 에러를 status/code/param/request_id 까지 구조화.
+ */
+function structureError(err: unknown, fallbackMessage: string): FaceCandidateError {
+  if (err instanceof APIError) {
+    return {
+      status: err.status,
+      code: (err.code ?? null) as string | null,
+      param: (err.param ?? null) as string | null,
+      requestId: (err.requestID ?? err.headers?.["x-request-id"] ?? null) as
+        | string
+        | null,
+      message: err.message,
+    };
+  }
+  return {
+    message: err instanceof Error ? err.message : String(err) || fallbackMessage,
+  };
 }
 
 /**
@@ -194,6 +244,7 @@ export async function runFaceCandidatesGeneration(
       sourcePhotoUrls: sourceUrls,
       attempts: 1,
       createdAt: new Date().toISOString(),
+      attemptId: opts.lease.attemptId,
     };
     await supabase
       .from("moobook_books")
@@ -201,6 +252,7 @@ export async function runFaceCandidatesGeneration(
         status: "faces_ready",
         face_candidate_urls: mockUrls,
         face_candidate_metadata: metadata,
+        face_generation_lease: null,
       })
       .eq("id", opts.bookId);
     return { candidateUrls: mockUrls, metadata };
@@ -246,10 +298,14 @@ export async function runFaceCandidatesGeneration(
     }
     buffers = buffers.slice(0, TARGET_COUNT);
   } catch (err) {
+    const structured = structureError(err, "후보 생성 실패");
+    // 다른 워커가 우리보다 먼저 회수해서 attemptId가 바뀌었을 수 있으므로
+    // attemptId 가 동일할 때만 실패 상태를 기록한다.
     await supabase
       .from("moobook_books")
       .update({
         status: "faces_failed",
+        face_generation_lease: null,
         face_candidate_metadata: {
           model: modelUsed,
           prompt: promptUsed,
@@ -257,10 +313,12 @@ export async function runFaceCandidatesGeneration(
           sourcePhotoUrls: sourceUrls,
           attempts,
           createdAt: new Date().toISOString(),
-          error: err instanceof Error ? err.message : String(err),
+          attemptId: opts.lease.attemptId,
+          error: structured,
         },
       })
-      .eq("id", opts.bookId);
+      .eq("id", opts.bookId)
+      .eq("face_generation_lease->>attemptId", opts.lease.attemptId);
     throw err;
   }
 
@@ -284,6 +342,7 @@ export async function runFaceCandidatesGeneration(
     sourcePhotoUrls: sourceUrls,
     attempts,
     createdAt: new Date().toISOString(),
+    attemptId: opts.lease.attemptId,
   };
 
   const { error: updateError } = await supabase
@@ -292,8 +351,10 @@ export async function runFaceCandidatesGeneration(
       status: "faces_ready",
       face_candidate_urls: uploadedUrls,
       face_candidate_metadata: metadata,
+      face_generation_lease: null,
     })
-    .eq("id", opts.bookId);
+    .eq("id", opts.bookId)
+    .eq("face_generation_lease->>attemptId", opts.lease.attemptId);
   if (updateError) {
     throw new Error(`상태 업데이트 실패: ${updateError.message}`);
   }

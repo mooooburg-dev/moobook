@@ -18,6 +18,21 @@ export interface PhotoAsset {
   faceValidation?: { valid: boolean; reason?: string };
 }
 
+export interface FaceCandidateError {
+  /** OpenAI APIError.status 또는 fetch 응답 코드 */
+  status?: number;
+  /** OpenAI 에러 코드 (e.g. "model_not_found") */
+  code?: string | null;
+  /** OpenAI 에러 param (e.g. "image", "n") */
+  param?: string | null;
+  /** OpenAI 응답에 포함된 request id (예: "req_75fa…") */
+  requestId?: string | null;
+  /** 사람 읽는 메시지 */
+  message: string;
+  /** 어떤 reference index에서 실패했는지 (있으면) */
+  referenceIndex?: number;
+}
+
 export interface FaceCandidateMetadata {
   model: string;
   prompt: string;
@@ -25,6 +40,15 @@ export interface FaceCandidateMetadata {
   sourcePhotoUrls: string[];
   attempts: number;
   createdAt: string;
+  attemptId?: string;
+  error?: FaceCandidateError;
+}
+
+export interface FaceGenerationLease {
+  startedAt: string;
+  leaseUntil: string;
+  attemptId: string;
+  attempt: number;
 }
 
 export interface AnchorMetadata {
@@ -66,6 +90,7 @@ export interface Book {
   photos: PhotoAsset[] | null;
   face_candidate_urls: string[] | null;
   face_candidate_metadata: FaceCandidateMetadata | null;
+  face_generation_lease: FaceGenerationLease | null;
   anchor_face_url: string | null;
   anchor_metadata: AnchorMetadata | null;
   image_model: string | null;

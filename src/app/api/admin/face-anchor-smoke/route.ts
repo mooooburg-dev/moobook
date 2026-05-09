@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
       gender,
       photos,
       preferredModel: modelId,
+      lease: lock.lease,
     });
   } catch (err) {
     return NextResponse.json(

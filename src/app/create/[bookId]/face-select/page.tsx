@@ -6,9 +6,17 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { BookStatus } from "@/types";
 
+interface CandidatesError {
+  status?: number;
+  code?: string | null;
+  message?: string;
+  requestId?: string | null;
+}
+
 interface CandidatesMetadata {
   createdAt?: string;
-  error?: string;
+  error?: CandidatesError | string;
+  attemptId?: string;
 }
 
 interface CandidatesResponse {
@@ -19,6 +27,9 @@ interface CandidatesResponse {
 }
 
 const POLL_INTERVAL_MS = 3000;
+// 사용자에게 "오래 걸려요" 안내를 띄우는 임계 (Codex 피드백 #5).
+// 백엔드 lease TTL(6분)보다 짧게 잡아 UI에서 먼저 stuck을 인지할 수 있게.
+const SLOW_THRESHOLD_MS = 90 * 1000;
 
 export default function FaceSelectPage() {
   const params = useParams<{ bookId: string }>();
@@ -29,7 +40,9 @@ export default function FaceSelectPage() {
   const [isConfirming, setIsConfirming] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [waitingMs, setWaitingMs] = useState(0);
   const triggerOnceRef = useRef(false);
+  const generationStartRef = useRef<number | null>(null);
 
   const fetchState = useCallback(async () => {
     try {
@@ -75,18 +88,26 @@ export default function FaceSelectPage() {
 
       if (state.status === "pending") {
         triggerOnceRef.current = true;
+        generationStartRef.current = Date.now();
         triggerCandidates(false);
         return;
       }
       if (state.status === "faces_failed") {
         triggerOnceRef.current = true;
+        generationStartRef.current = Date.now();
         triggerCandidates(true);
         return;
       }
-      if (state.status === "faces_generating" && !state.metadata) {
-        // metadata=null = 시작도 못 함 → 즉시 force로 회수
-        triggerOnceRef.current = true;
-        triggerCandidates(true);
+      if (state.status === "faces_generating") {
+        const startedAt = state.metadata?.createdAt
+          ? new Date(state.metadata.createdAt).getTime()
+          : Date.now();
+        generationStartRef.current = startedAt;
+        if (!state.metadata) {
+          // metadata=null = 시작도 못 함 → 즉시 force로 회수
+          triggerOnceRef.current = true;
+          triggerCandidates(true);
+        }
       }
     }
     init();
@@ -101,6 +122,22 @@ export default function FaceSelectPage() {
     const interval = setInterval(fetchState, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [status, fetchState]);
+
+  // 경과 시간 카운터 — 90초 넘으면 "오래 걸려요" 메시지 + 재시도 버튼
+  useEffect(() => {
+    if (status !== "pending" && status !== "faces_generating") {
+      setWaitingMs(0);
+      return;
+    }
+    const tick = () => {
+      const start = generationStartRef.current;
+      if (!start) return;
+      setWaitingMs(Date.now() - start);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [status]);
 
   async function handleConfirm() {
     if (selectedIndex === null) return;
@@ -150,6 +187,8 @@ export default function FaceSelectPage() {
       setCandidates([]);
       setSelectedIndex(null);
       setStatus("faces_generating");
+      generationStartRef.current = Date.now();
+      setWaitingMs(0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "재생성 실패");
     } finally {
@@ -189,6 +228,21 @@ export default function FaceSelectPage() {
           <p className="text-text-light text-sm">
             보통 30초~1분 정도 걸려요. 잠시만 기다려주세요.
           </p>
+          {waitingMs > SLOW_THRESHOLD_MS && (
+            <div className="mt-5 pt-5 border-t border-brand/20">
+              <p className="text-sm text-text mb-3">
+                생각보다 오래 걸리고 있어요. 다시 시도하시겠어요?
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRetry}
+                disabled={isRetrying}
+              >
+                {isRetrying ? "다시 시도 중..." : "🔄 처음부터 다시"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

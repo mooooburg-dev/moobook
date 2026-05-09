@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
       gender: book.child_gender,
       photos,
       preferredModel: book.image_model,
+      lease: lockResult.lease,
     });
     return NextResponse.json({
       status: "faces_ready",
