@@ -221,9 +221,32 @@ export default function FaceSelectPage() {
           >
             아이 얼굴을 그리고 있어요
           </p>
-          <p className="text-text-light text-sm">
+          <p className="text-text-light text-sm mb-5">
             보통 30초~1분 정도 걸려요. 잠시만 기다려주세요.
           </p>
+
+          {/* 진행 바 — 50초를 100%로 잡고 시각적 피드백.
+              실제 완료 시점은 백엔드가 결정하므로 99%에서 멈춘다. */}
+          <div className="max-w-xs mx-auto">
+            <div
+              className="h-2 rounded-full bg-white/60 overflow-hidden"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.min(99, (waitingMs / 50000) * 100)}
+            >
+              <div
+                className="h-full bg-linear-to-r from-brand to-brand-pink transition-all duration-700 ease-out"
+                style={{
+                  width: `${Math.min(99, (waitingMs / 50000) * 100)}%`,
+                }}
+              />
+            </div>
+            <p className="text-[11px] text-text-light mt-2">
+              {Math.round(waitingMs / 1000)}초 / 약 50초
+            </p>
+          </div>
+
           {waitingMs > SLOW_THRESHOLD_MS && (
             <div className="mt-5 pt-5 border-t border-brand/20">
               <p className="text-sm text-text mb-3">

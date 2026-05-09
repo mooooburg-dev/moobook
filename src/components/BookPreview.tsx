@@ -30,9 +30,9 @@ export default function BookPreview({
 }: BookPreviewProps) {
   const [currentPage, setCurrentPage] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [loadedImageUrl, setLoadedImageUrl] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // 책 프레임 크기 변화에 따라 텍스트 영역 폭을 측정해 줄바꿈에 사용
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -57,6 +57,9 @@ export default function BookPreview({
       ? replaceChildName(current.text, childName?.trim() || "주인공")
       : null;
 
+  const imageLoading =
+    !!current?.imageUrl && loadedImageUrl !== current.imageUrl;
+
   // PDF 생성기와 동일한 알고리즘으로 줄바꿈. 컨테이너 폭 - 좌우 padding 만큼만 한 줄에.
   const wrappedLines = useMemo(() => {
     if (!resolvedText) return [];
@@ -78,13 +81,25 @@ export default function BookPreview({
           className="relative aspect-3/4 bg-peach rounded-xl overflow-hidden"
         >
           {current?.imageUrl ? (
-            <Image
-              src={current.imageUrl}
-              alt={`페이지 ${currentPage + 1}`}
-              fill
-              className={`object-cover ${isLockedPage ? "scale-110 blur-md" : ""}`}
-              sizes="(max-width: 512px) 100vw, 512px"
-            />
+            <>
+              <Image
+                key={current.imageUrl}
+                src={current.imageUrl}
+                alt={`페이지 ${currentPage + 1}`}
+                fill
+                className={`object-cover transition-opacity duration-200 ${
+                  imageLoading ? "opacity-0" : "opacity-100"
+                } ${isLockedPage ? "scale-110 blur-md" : ""}`}
+                sizes="(max-width: 512px) 100vw, 512px"
+                onLoad={() => setLoadedImageUrl(current.imageUrl)}
+                onError={() => setLoadedImageUrl(current.imageUrl)}
+              />
+              {imageLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-peach/40">
+                  <span className="inline-block w-8 h-8 rounded-full border-[3px] border-brand/30 border-t-brand animate-spin" />
+                </div>
+              )}
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-text-lighter gap-2">
               <span className="text-3xl animate-pulse">📖</span>

@@ -15,14 +15,16 @@ const FACE_SELECT_STATUSES: Book["status"][] = [
   "faces_failed",
 ];
 
+const PAGE_GEN_INTERVAL_MS = 1000;
+
 export default function BookDetailPage() {
   const params = useParams<{ bookId: string }>();
   const router = useRouter();
   const [book, setBook] = useState<Book | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [initialLoaded, setInitialLoaded] = useState(false);
-  const generateTriggered = useRef(false);
   const redirectedToFaceSelect = useRef(false);
+  const pageLoopActiveRef = useRef(false);
 
   const fetchBook = useCallback(async () => {
     const supabase = createClient();
@@ -40,14 +42,23 @@ export default function BookDetailPage() {
     const newBook = data as Book;
     setBook((prev) => {
       if (!prev) return newBook;
-      if (prev.status !== newBook.status) return newBook;
-      if (prev.preview_pages?.length !== newBook.preview_pages?.length) return newBook;
+      const prevAll = prev.all_pages?.length ?? 0;
+      const newAll = newBook.all_pages?.length ?? 0;
+      const prevPreview = prev.preview_pages?.length ?? 0;
+      const newPreview = newBook.preview_pages?.length ?? 0;
+      if (
+        prev.status !== newBook.status ||
+        prevAll !== newAll ||
+        prevPreview !== newPreview
+      ) {
+        return newBook;
+      }
       return prev;
     });
     return newBook;
   }, [params.bookId]);
 
-  // 최초 로드 + 흐름 분기
+  // 진행 상태 분기 + face-select redirect
   useEffect(() => {
     async function init() {
       const bookData = await fetchBook();
@@ -56,8 +67,6 @@ export default function BookDetailPage() {
       const isNewFlow =
         (bookData.photos?.length ?? 0) > 0 && !bookData.anchor_face_url;
 
-      // 새 흐름: photos가 있고 anchor 미선택이면 face-select로 redirect
-      // 또는 status가 faces_* 단계면 동일하게 redirect
       if (
         !redirectedToFaceSelect.current &&
         (isNewFlow || FACE_SELECT_STATUSES.includes(bookData.status))
@@ -68,45 +77,70 @@ export default function BookDetailPage() {
       }
 
       setInitialLoaded(true);
-
-      // 본문 생성 트리거는 이 페이지가 책임진다. 새 흐름(faces_ready)과
-      // 레거시(pending) 둘 다 허용. 백엔드 conditional update로 중복 호출 안전.
-      if (
-        (bookData.status === "pending" || bookData.status === "faces_ready") &&
-        !generateTriggered.current
-      ) {
-        generateTriggered.current = true;
-        fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            bookId: bookData.id,
-            photoUrl: bookData.photo_url,
-          }),
-        }).catch((err) => {
-          console.error("AI 생성 요청 실패:", err);
-        });
-      }
     }
     init();
   }, [fetchBook, router]);
 
-  // 폴링 — preview_pages 가 3장이 되거나 paid 가 되기 전까지 3초 간격.
-  // (preview_ready 진입 후에도 백그라운드가 추가 페이지를 채우므로 계속 폴링)
-  const bookStatus = book?.status;
-  const previewCount = book?.preview_pages?.length ?? 0;
+  // polling-driven 페이지 생성 루프.
+  // 미생성 페이지가 있으면 /api/generate 호출 → 응답 후 fetchBook → 반복.
+  // 12장 다 차거나 paid 면 종료.
   useEffect(() => {
-    if (!bookStatus) return;
-    if (bookStatus === "paid") return;
-    if (FACE_SELECT_STATUSES.includes(bookStatus)) return;
-    if (previewCount >= 3) return;
+    if (!book) return;
+    if (FACE_SELECT_STATUSES.includes(book.status)) return;
+    if (book.status === "paid") return;
+    if (pageLoopActiveRef.current) return;
 
-    const interval = setInterval(fetchBook, 3000);
-    return () => clearInterval(interval);
-  }, [bookStatus, previewCount, fetchBook]);
+    const totalPages = 12;
+    const allCount = book.all_pages?.length ?? 0;
+    if (allCount >= totalPages) return;
 
-  const isReady = book?.status === "preview_ready" || book?.status === "paid";
-  const showLoading = !initialLoaded || !isReady;
+    pageLoopActiveRef.current = true;
+    let cancelled = false;
+
+    const loop = async () => {
+      while (!cancelled) {
+        try {
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bookId: params.bookId }),
+          });
+          if (!res.ok) {
+            // 일시 오류 — 짧게 대기 후 재시도
+            await new Promise((r) => setTimeout(r, 3000));
+            continue;
+          }
+          const data = (await res.json()) as {
+            done?: boolean;
+            busy?: boolean;
+            generated?: { pageNumber: number; url: string };
+            completedPages?: number;
+            totalPages?: number;
+          };
+          await fetchBook();
+          if (data.done) break;
+          if (data.busy) {
+            await new Promise((r) => setTimeout(r, PAGE_GEN_INTERVAL_MS));
+            continue;
+          }
+          if (data.completedPages && data.totalPages) {
+            if (data.completedPages >= data.totalPages) break;
+          }
+          await new Promise((r) => setTimeout(r, PAGE_GEN_INTERVAL_MS));
+        } catch (err) {
+          console.error("페이지 생성 루프 오류:", err);
+          await new Promise((r) => setTimeout(r, 3000));
+        }
+      }
+      pageLoopActiveRef.current = false;
+    };
+
+    loop();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [book, params.bookId, fetchBook]);
 
   if (error) {
     return (
@@ -118,10 +152,14 @@ export default function BookDetailPage() {
     );
   }
 
+  const previewCount = book?.preview_pages?.length ?? 0;
+  const allCount = book?.all_pages?.length ?? 0;
+  const showLoading = !initialLoaded || previewCount === 0;
+
   if (!book || showLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20">
-        <GenerationProgress />
+        <GenerationProgress completedPages={allCount} totalPages={12} />
       </div>
     );
   }

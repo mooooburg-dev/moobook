@@ -100,6 +100,34 @@ function buildReferences(
   };
 }
 
+export interface GenerateOnePageInput {
+  page: ScenarioPage;
+  photoUrl: string;
+  bookId: string;
+  scenarioId: ThemeId;
+  gender: ChildGender;
+  anchorFaceUrl?: string | null;
+  imageModel: string;
+}
+
+/**
+ * 단일 페이지 생성 (외부 호출용 래퍼).
+ * polling-driven 페이지 생성 서비스에서 사용.
+ */
+export async function generateOnePage(
+  input: GenerateOnePageInput
+): Promise<string> {
+  return generateSinglePage(
+    input.page,
+    input.photoUrl,
+    input.bookId,
+    input.scenarioId,
+    input.gender,
+    input.anchorFaceUrl,
+    input.imageModel
+  );
+}
+
 async function generateSinglePage(
   page: ScenarioPage,
   photoUrl: string,
