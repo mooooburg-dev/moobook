@@ -53,6 +53,18 @@ export default function BookPreview({
             </div>
           )}
 
+          {/* 하단 그라데이션 + 본문 텍스트 오버레이 (실제 동화책 페이지 느낌) */}
+          {resolvedText && !isLockedPage && (
+            <div className="absolute inset-x-0 bottom-0 pt-24 pb-5 px-6 bg-linear-to-t from-black/75 via-black/45 to-transparent pointer-events-none">
+              <p
+                className="text-white text-[16px] leading-relaxed whitespace-pre-line drop-shadow-md"
+                style={{ fontFamily: "var(--font-body)" }}
+              >
+                {resolvedText}
+              </p>
+            </div>
+          )}
+
           {isLockedPage && (
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
               <div className="text-center text-white px-6 bg-black/30 rounded-2xl py-6">
@@ -71,17 +83,6 @@ export default function BookPreview({
           )}
         </div>
       </div>
-
-      {resolvedText && (
-        <div className="mt-5 bg-white border border-brand/10 rounded-2xl px-5 py-4 shadow-sm">
-          <p
-            className="text-[15px] leading-relaxed text-text whitespace-pre-line"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            {resolvedText}
-          </p>
-        </div>
-      )}
 
       <div className="flex items-center justify-between mt-5">
         <Button
