@@ -24,6 +24,8 @@ const SOFT_BREAK_AFTER = new Set([
   ")",
   "]",
   "}",
+  '"',
+  "'",
   "”",
   "’",
   "》",
