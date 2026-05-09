@@ -53,10 +53,14 @@ export default function BookDetailPage() {
       const bookData = await fetchBook();
       if (!bookData) return;
 
-      // 새 흐름: 얼굴 후보/선택 단계가 끝나지 않았으면 face-select로 redirect
+      const isNewFlow =
+        (bookData.photos?.length ?? 0) > 0 && !bookData.anchor_face_url;
+
+      // 새 흐름: photos가 있고 anchor 미선택이면 face-select로 redirect
+      // 또는 status가 faces_* 단계면 동일하게 redirect
       if (
         !redirectedToFaceSelect.current &&
-        FACE_SELECT_STATUSES.includes(bookData.status)
+        (isNewFlow || FACE_SELECT_STATUSES.includes(bookData.status))
       ) {
         redirectedToFaceSelect.current = true;
         router.replace(`/create/${bookData.id}/face-select`);

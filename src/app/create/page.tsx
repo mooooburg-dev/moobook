@@ -67,12 +67,14 @@ export default function CreatePage() {
         uploadedAt,
       }));
 
-      // 2. book insert — 얼굴 후보부터 만들어야 하므로 status=faces_generating 으로 시작
+      // 2. book insert — status=pending 으로 시작.
+      // face-select 페이지가 진입 시 /api/face-candidates POST 로 락을 잡아
+      // pending → faces_generating → faces_ready 흐름을 만든다.
       const supabase = createClient();
       const { data: book, error: insertError } = await supabase
         .from("moobook_books")
         .insert({
-          status: "faces_generating",
+          status: "pending",
           theme,
           child_name: childName.trim(),
           child_gender: childGender,
@@ -107,19 +109,9 @@ export default function CreatePage() {
         }
       }
 
-      // 4. 얼굴 후보 생성 트리거.
-      // keepalive: true로 router.push 직후 navigation이 fetch를 abort하지 않도록 함.
-      // (그래도 face-select 페이지가 마운트되면 보강 트리거가 한 번 더 호출됨 — 백엔드에서 멱등 처리)
-      fetch("/api/face-candidates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookId: book.id }),
-        keepalive: true,
-      }).catch((err) => {
-        console.error("얼굴 후보 트리거 실패:", err);
-      });
-
-      // 5. 얼굴 선택 페이지로 이동
+      // 4. 얼굴 선택 페이지로 이동.
+      // navigation 직전 fire-and-forget fetch는 dev/모바일에서 자주 abort되어 stuck을
+      // 유발했음. 트리거 책임은 face-select 페이지로 일원화.
       router.push(`/create/${book.id}/face-select`);
     } catch (err) {
       console.error("생성 실패:", err);

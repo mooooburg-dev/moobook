@@ -6,10 +6,15 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { BookStatus } from "@/types";
 
+interface CandidatesMetadata {
+  createdAt?: string;
+  error?: string;
+}
+
 interface CandidatesResponse {
   status: BookStatus;
   candidates: string[];
-  metadata: unknown;
+  metadata: CandidatesMetadata | null;
   anchorFaceUrl: string | null;
 }
 
@@ -46,26 +51,46 @@ export default function FaceSelectPage() {
     }
   }, [params.bookId]);
 
-  // 최초 로드 + 필요 시 트리거
+  // 트리거 fetch — fire-and-forget. 페이지가 떠있는 동안 응답을 기다리진 않고
+  // 폴링이 결과를 알아옴. (이 페이지에서는 navigation abort 우려가 없음)
+  const triggerCandidates = useCallback(
+    (force: boolean) => {
+      fetch("/api/face-candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookId: params.bookId, force }),
+      }).catch(() => undefined);
+    },
+    [params.bookId]
+  );
+
+  // 최초 로드 + 트리거 책임은 이 페이지에 있음.
+  // - pending: 정상 트리거
+  // - faces_failed: force 재시도
+  // - faces_generating + metadata=null → stuck 의심 → force 회수
   useEffect(() => {
     async function init() {
       const state = await fetchState();
-      if (!state) return;
-      // /create에서 이미 fire-and-forget 트리거하지만, 새로고침/직접 진입 케이스 대비
-      if (
-        !triggerOnceRef.current &&
-        (state.status === "pending" || state.status === "faces_failed")
-      ) {
+      if (!state || triggerOnceRef.current) return;
+
+      if (state.status === "pending") {
         triggerOnceRef.current = true;
-        fetch("/api/face-candidates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bookId: params.bookId }),
-        }).catch(() => undefined);
+        triggerCandidates(false);
+        return;
+      }
+      if (state.status === "faces_failed") {
+        triggerOnceRef.current = true;
+        triggerCandidates(true);
+        return;
+      }
+      if (state.status === "faces_generating" && !state.metadata) {
+        // metadata=null = 시작도 못 함 → 즉시 force로 회수
+        triggerOnceRef.current = true;
+        triggerCandidates(true);
       }
     }
     init();
-  }, [fetchState, params.bookId]);
+  }, [fetchState, triggerCandidates]);
 
   // 폴링
   useEffect(() => {
