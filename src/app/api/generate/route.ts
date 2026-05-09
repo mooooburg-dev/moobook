@@ -6,7 +6,7 @@ import {
 import { resolveScenario } from "@/lib/scenarios";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePhotos } from "@/lib/face-candidates/service";
-import type { Book, ThemeId } from "@/types";
+import type { Book } from "@/types";
 
 export const maxDuration = 300;
 
@@ -15,15 +15,14 @@ const ALLOWED_START_STATUSES = ["pending", "faces_ready"] as const;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { bookId, photoUrl: bodyPhotoUrl, theme } = body as {
+    const { bookId, photoUrl: bodyPhotoUrl } = body as {
       bookId: string;
       photoUrl?: string;
-      theme: ThemeId;
     };
 
-    if (!bookId || !theme) {
+    if (!bookId) {
       return NextResponse.json(
-        { error: "bookId, theme은 필수 값입니다." },
+        { error: "bookId는 필수 값입니다." },
         { status: 400 }
       );
     }

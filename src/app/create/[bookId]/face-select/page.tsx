@@ -1,0 +1,256 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { useParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import type { BookStatus } from "@/types";
+
+interface CandidatesResponse {
+  status: BookStatus;
+  candidates: string[];
+  metadata: unknown;
+  anchorFaceUrl: string | null;
+}
+
+const POLL_INTERVAL_MS = 3000;
+
+export default function FaceSelectPage() {
+  const params = useParams<{ bookId: string }>();
+  const router = useRouter();
+  const [candidates, setCandidates] = useState<string[]>([]);
+  const [status, setStatus] = useState<BookStatus | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const triggerOnceRef = useRef(false);
+
+  const fetchState = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/face-candidates?bookId=${params.bookId}`,
+        { cache: "no-store" }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "후보 조회 실패");
+      }
+      const data = (await res.json()) as CandidatesResponse;
+      setStatus(data.status);
+      setCandidates(data.candidates ?? []);
+      return data;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "후보 조회 실패");
+      return null;
+    }
+  }, [params.bookId]);
+
+  // 최초 로드 + 필요 시 트리거
+  useEffect(() => {
+    async function init() {
+      const state = await fetchState();
+      if (!state) return;
+      // /create에서 이미 fire-and-forget 트리거하지만, 새로고침/직접 진입 케이스 대비
+      if (
+        !triggerOnceRef.current &&
+        (state.status === "pending" || state.status === "faces_failed")
+      ) {
+        triggerOnceRef.current = true;
+        fetch("/api/face-candidates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookId: params.bookId }),
+        }).catch(() => undefined);
+      }
+    }
+    init();
+  }, [fetchState, params.bookId]);
+
+  // 폴링
+  useEffect(() => {
+    if (!status) return;
+    if (status === "faces_ready" || status === "faces_failed") return;
+    if (status !== "pending" && status !== "faces_generating") return;
+
+    const interval = setInterval(fetchState, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [status, fetchState]);
+
+  async function handleConfirm() {
+    if (selectedIndex === null) return;
+    setIsConfirming(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/face-candidates?bookId=${params.bookId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ candidateIndex: selectedIndex }),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "anchor 선택 실패");
+      }
+
+      // 본문 생성 트리거 (fire-and-forget) — /create/[bookId] 페이지에서 폴링
+      fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookId: params.bookId, theme: "from-db" }),
+      }).catch(() => undefined);
+
+      router.push(`/create/${params.bookId}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "오류가 발생했습니다.");
+      setIsConfirming(false);
+    }
+  }
+
+  async function handleRetry() {
+    setIsRetrying(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/face-candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookId: params.bookId, force: true }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "재생성 실패");
+      }
+      setCandidates([]);
+      setSelectedIndex(null);
+      setStatus("faces_generating");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "재생성 실패");
+    } finally {
+      setIsRetrying(false);
+    }
+  }
+
+  const isGenerating =
+    status === "pending" || status === "faces_generating";
+  const isReady = status === "faces_ready" && candidates.length > 0;
+  const isFailed = status === "faces_failed";
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-12 page-enter">
+      <div className="text-center mb-8">
+        <div className="text-4xl mb-3">🪞</div>
+        <h1
+          className="text-3xl text-text"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          얼굴 고르기
+        </h1>
+        <p className="text-text-light mt-2">
+          가장 닮은 얼굴을 골라주세요. 선택한 얼굴이 동화책 전체에 사용돼요.
+        </p>
+      </div>
+
+      {isGenerating && (
+        <div className="bg-peach/40 border border-brand/20 rounded-2xl p-8 text-center">
+          <div className="text-3xl mb-3 animate-pulse">✨</div>
+          <p
+            className="text-text text-base mb-1"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            아이 얼굴을 그리고 있어요
+          </p>
+          <p className="text-text-light text-sm">
+            보통 30초~1분 정도 걸려요. 잠시만 기다려주세요.
+          </p>
+        </div>
+      )}
+
+      {isFailed && (
+        <div className="bg-brand-pink/10 border border-brand-pink/30 rounded-2xl p-8 text-center">
+          <div className="text-3xl mb-3">😢</div>
+          <p
+            className="text-text text-base mb-2"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            얼굴 생성에 실패했어요
+          </p>
+          <p className="text-text-light text-sm mb-4">
+            다시 시도하거나, 사진을 다른 것으로 올려주세요.
+          </p>
+          <Button
+            variant="outline"
+            onClick={handleRetry}
+            disabled={isRetrying}
+          >
+            {isRetrying ? "재시도 중..." : "다시 만들기"}
+          </Button>
+        </div>
+      )}
+
+      {isReady && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            {candidates.map((url, idx) => {
+              const selected = selectedIndex === idx;
+              return (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setSelectedIndex(idx)}
+                  className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all bg-white ${
+                    selected
+                      ? "border-brand ring-4 ring-brand/30 shadow-lg scale-[1.02]"
+                      : "border-brand/20 hover:border-brand/50"
+                  }`}
+                >
+                  <Image
+                    src={url}
+                    alt={`후보 ${idx + 1}`}
+                    fill
+                    sizes="(max-width: 640px) 100vw, 33vw"
+                    className="object-cover"
+                    unoptimized
+                  />
+                  {selected && (
+                    <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-sm shadow">
+                      ✓
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/40 to-transparent text-white text-xs py-1.5 text-center">
+                    후보 {idx + 1}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button
+              size="lg"
+              disabled={selectedIndex === null || isConfirming}
+              onClick={handleConfirm}
+            >
+              {isConfirming
+                ? "✨ 동화책 만들기 시작..."
+                : "이 얼굴로 동화책 만들기 →"}
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={handleRetry}
+              disabled={isRetrying || isConfirming}
+            >
+              {isRetrying ? "재생성 중..." : "🔄 다시 만들기"}
+            </Button>
+          </div>
+        </>
+      )}
+
+      {error && (
+        <p className="text-center text-brand-pink text-sm mt-6">{error}</p>
+      )}
+    </div>
+  );
+}

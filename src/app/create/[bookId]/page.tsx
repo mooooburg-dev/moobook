@@ -9,6 +9,12 @@ import { createClient } from "@/lib/supabase/client";
 import { resolveScenario } from "@/lib/scenarios";
 import type { Book } from "@/types";
 
+const FACE_SELECT_STATUSES: Book["status"][] = [
+  "faces_generating",
+  "faces_ready",
+  "faces_failed",
+];
+
 export default function BookDetailPage() {
   const params = useParams<{ bookId: string }>();
   const router = useRouter();
@@ -16,6 +22,7 @@ export default function BookDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [initialLoaded, setInitialLoaded] = useState(false);
   const generateTriggered = useRef(false);
+  const redirectedToFaceSelect = useRef(false);
 
   const fetchBook = useCallback(async () => {
     const supabase = createClient();
@@ -31,7 +38,6 @@ export default function BookDetailPage() {
     }
 
     const newBook = data as Book;
-    // status 또는 preview_pages가 바뀔 때만 업데이트
     setBook((prev) => {
       if (!prev) return newBook;
       if (prev.status !== newBook.status) return newBook;
@@ -41,25 +47,33 @@ export default function BookDetailPage() {
     return newBook;
   }, [params.bookId]);
 
-  // 최초 로드 + AI 생성 트리거
+  // 최초 로드 + 흐름 분기
   useEffect(() => {
     async function init() {
       const bookData = await fetchBook();
       if (!bookData) return;
 
+      // 새 흐름: 얼굴 후보/선택 단계가 끝나지 않았으면 face-select로 redirect
+      if (
+        !redirectedToFaceSelect.current &&
+        FACE_SELECT_STATUSES.includes(bookData.status)
+      ) {
+        redirectedToFaceSelect.current = true;
+        router.replace(`/create/${bookData.id}/face-select`);
+        return;
+      }
+
       setInitialLoaded(true);
 
-      // pending 상태면 AI 생성 트리거 (fire-and-forget, await 안 함)
+      // 레거시 흐름: pending 상태면 즉시 본문 생성 트리거 (기존 books 호환)
       if (bookData.status === "pending" && !generateTriggered.current) {
         generateTriggered.current = true;
-
         fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             bookId: bookData.id,
             photoUrl: bookData.photo_url,
-            theme: bookData.theme,
           }),
         }).catch((err) => {
           console.error("AI 생성 요청 실패:", err);
@@ -67,13 +81,14 @@ export default function BookDetailPage() {
       }
     }
     init();
-  }, [fetchBook]);
+  }, [fetchBook, router]);
 
-  // 상태 폴링 (3초 간격)
+  // 폴링 (preview_ready/paid 도달 전까지 3초)
   const bookStatus = book?.status;
   useEffect(() => {
     if (!bookStatus) return;
     if (bookStatus === "preview_ready" || bookStatus === "paid") return;
+    if (FACE_SELECT_STATUSES.includes(bookStatus)) return;
 
     const interval = setInterval(fetchBook, 3000);
     return () => clearInterval(interval);

@@ -2,16 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import PhotoUploader from "@/components/PhotoUploader";
+import MultiPhotoUploader, {
+  type UploadedPhoto,
+} from "@/components/MultiPhotoUploader";
 import ThemeSelector from "@/components/ThemeSelector";
 import CustomKeywordsModal from "@/components/CustomKeywordsModal";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
-import type { ChildGender, ThemeId } from "@/types";
+import type { ChildGender, PhotoAsset, ThemeId } from "@/types";
 
 export default function CreatePage() {
   const router = useRouter();
-  const [photo, setPhoto] = useState<File | null>(null);
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [theme, setTheme] = useState<ThemeId | null>(null);
   const [customKeywords, setCustomKeywords] = useState<
     [string, string, string] | null
@@ -24,52 +26,66 @@ export default function CreatePage() {
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit =
-    photo &&
+    photos.length > 0 &&
     theme &&
     childName.trim() &&
     (theme !== "custom" || customKeywords !== null);
 
   async function handleSubmit() {
-    if (!canSubmit || !photo || !theme) return;
+    if (!canSubmit || photos.length === 0 || !theme) return;
     setIsSubmitting(true);
     setError(null);
 
     try {
-      // 1. 사진을 Supabase Storage에 업로드
+      // 1. 사진들을 한 번에 업로드 (최대 3장)
+      const orderedPhotos = [...photos].sort((a, b) => {
+        if (a.isPrimary && !b.isPrimary) return -1;
+        if (!a.isPrimary && b.isPrimary) return 1;
+        return 0;
+      });
+
       const formData = new FormData();
-      formData.append("file", photo);
+      for (const p of orderedPhotos) {
+        formData.append("files", p.file);
+      }
 
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
-
       if (!uploadRes.ok) {
         const uploadErr = await uploadRes.json();
         throw new Error(uploadErr.error || "사진 업로드 실패");
       }
+      const { urls } = (await uploadRes.json()) as { urls: string[] };
 
-      const { url: photoUrl } = await uploadRes.json();
+      const uploadedAt = new Date().toISOString();
+      const photoAssets: PhotoAsset[] = urls.map((url, index) => ({
+        url,
+        order: index,
+        isPrimary: index === 0,
+        uploadedAt,
+      }));
 
-      // 2. books 테이블에 레코드 생성
+      // 2. book insert — 얼굴 후보부터 만들어야 하므로 status=faces_generating 으로 시작
       const supabase = createClient();
       const { data: book, error: insertError } = await supabase
         .from("moobook_books")
         .insert({
-          status: "pending",
+          status: "faces_generating",
           theme,
           child_name: childName.trim(),
           child_gender: childGender,
-          photo_url: photoUrl,
+          photo_url: urls[0],
+          photos: photoAssets,
         })
         .select("id")
         .single();
-
       if (insertError || !book) {
         throw new Error(insertError?.message || "Book 생성 실패");
       }
 
-      // 3. 커스텀 시나리오면 LLM으로 시나리오 생성 후 저장
+      // 3. 커스텀 시나리오면 LLM으로 시나리오 생성
       if (theme === "custom") {
         if (!customKeywords) throw new Error("키워드가 선택되지 않았습니다.");
         const customRes = await fetch("/api/custom-scenario", {
@@ -91,8 +107,17 @@ export default function CreatePage() {
         }
       }
 
-      // 4. 생성된 bookId로 이동
-      router.push(`/create/${book.id}`);
+      // 4. 얼굴 후보 생성을 fire-and-forget으로 트리거 (face-select 페이지에서도 확인)
+      fetch("/api/face-candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookId: book.id }),
+      }).catch((err) => {
+        console.error("얼굴 후보 트리거 실패:", err);
+      });
+
+      // 5. 얼굴 선택 페이지로 이동
+      router.push(`/create/${book.id}/face-select`);
     } catch (err) {
       console.error("생성 실패:", err);
       setError(err instanceof Error ? err.message : "오류가 발생했습니다.");
@@ -132,10 +157,15 @@ export default function CreatePage() {
         </div>
       </div>
 
-      {/* Step 1: 사진 업로드 */}
+      {/* Step 1: 사진 업로드 (최대 3장) */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>1</span>
+          <span
+            className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-sm"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            1
+          </span>
           <h2
             className="text-lg text-text"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -143,13 +173,18 @@ export default function CreatePage() {
             아이 사진 업로드
           </h2>
         </div>
-        <PhotoUploader onPhotoSelected={setPhoto} />
+        <MultiPhotoUploader photos={photos} onChange={setPhotos} />
       </section>
 
-      {/* Step 2: 아이 이름 입력 */}
+      {/* Step 2: 아이 이름 */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-8 h-8 rounded-full bg-brand-secondary text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>2</span>
+          <span
+            className="w-8 h-8 rounded-full bg-brand-secondary text-white flex items-center justify-center text-sm"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            2
+          </span>
           <h2
             className="text-lg text-text"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -168,10 +203,15 @@ export default function CreatePage() {
         />
       </section>
 
-      {/* Step 3: 아이 성별 */}
+      {/* Step 3: 성별 */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-8 h-8 rounded-full bg-brand-pink text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>3</span>
+          <span
+            className="w-8 h-8 rounded-full bg-brand-pink text-white flex items-center justify-center text-sm"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            3
+          </span>
           <h2
             className="text-lg text-text"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -180,10 +220,12 @@ export default function CreatePage() {
           </h2>
         </div>
         <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
-          {([
-            { id: "boy" as const, emoji: "👦", label: "남자아이" },
-            { id: "girl" as const, emoji: "👧", label: "여자아이" },
-          ]).map((opt) => {
+          {(
+            [
+              { id: "boy" as const, emoji: "👦", label: "남자아이" },
+              { id: "girl" as const, emoji: "👧", label: "여자아이" },
+            ]
+          ).map((opt) => {
             const selected = childGender === opt.id;
             return (
               <button
@@ -209,10 +251,15 @@ export default function CreatePage() {
         </div>
       </section>
 
-      {/* Step 4: 테마 선택 */}
+      {/* Step 4: 테마 */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-8 h-8 rounded-full bg-brand-blue text-white flex items-center justify-center text-sm" style={{ fontFamily: "var(--font-heading)" }}>4</span>
+          <span
+            className="w-8 h-8 rounded-full bg-brand-blue text-white flex items-center justify-center text-sm"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            4
+          </span>
           <h2
             className="text-lg text-text"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -244,12 +291,10 @@ export default function CreatePage() {
         }}
       />
 
-      {/* 에러 메시지 */}
       {error && (
         <p className="text-center text-brand-pink text-sm mb-4">{error}</p>
       )}
 
-      {/* 제출 */}
       <div className="text-center">
         <Button
           size="lg"
@@ -257,10 +302,8 @@ export default function CreatePage() {
           onClick={handleSubmit}
         >
           {isSubmitting
-            ? theme === "custom"
-              ? "✨ 시나리오 만드는 중..."
-              : "✨ 동화책 만드는 중..."
-            : "📖 동화책 만들기 시작!"}
+            ? "✨ 사진 업로드 중..."
+            : "📖 다음 단계: 얼굴 고르기"}
         </Button>
       </div>
     </div>
