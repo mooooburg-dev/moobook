@@ -18,7 +18,23 @@ import { resolvePhotos } from "@/lib/face-candidates/service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateOnePage } from "@/lib/image-pipeline";
 import { getDefaultImageModel } from "@/lib/openai-image";
+import { PREVIEW_PAGE_COUNT_BEFORE_PAYMENT } from "@/lib/utils/env";
 import type { Book, BookStatus } from "@/types";
+
+/**
+ * 결제 전에는 비용 절감을 위해 dev=1 / prod=3 장만 생성하고,
+ * 결제(paid) 이후에는 12장 전체를 생성한다.
+ */
+const PAID_STATUSES: BookStatus[] = [
+  "paid",
+  "printing",
+  "shipped",
+  "completed",
+];
+
+function isPaidStatus(status: BookStatus): boolean {
+  return PAID_STATUSES.includes(status);
+}
 
 export interface NextPageResult {
   /** 페이지 1장이 새로 생성됐다 */
@@ -89,12 +105,65 @@ export async function generateNextPage(
   const allPages = book.all_pages ?? [];
   const completedPages = allPages.length;
 
-  if (completedPages >= totalPages) {
+  // 결제 전엔 미리보기 limit 까지만 생성, 결제(paid) 이후엔 12장 전체.
+  const paid = isPaidStatus(book.status);
+  const targetPages = paid ? totalPages : PREVIEW_PAGE_COUNT_BEFORE_PAYMENT;
+  const PUBLIC_PREVIEW_LIMIT = PREVIEW_PAGE_COUNT_BEFORE_PAYMENT;
+
+  if (completedPages >= targetPages) {
+    // 더 만들 게 없는 상태에서, preview_pages / status 가 limit 와 어긋난 기존
+    // row 가 있으면 한 번 정규화한다 (Codex P2 #3).
+    //
+    // F1 race 방지 (Codex round 2 #1): preview_pages 보정과 status 승격을
+    // 분리해서 친다. status 승격은 반드시 generating 일 때만 통과하도록 조건부.
+    // 그래야 결제 confirm 이 paid 로 올린 직후 우리가 preview_ready 로 덮을 수
+    // 없다.
+    const desiredPreview = allPages.slice(0, PUBLIC_PREVIEW_LIMIT);
+    const currentPreview = book.preview_pages ?? [];
+    const previewMismatch =
+      currentPreview.length !== desiredPreview.length ||
+      currentPreview.some((url, i) => url !== desiredPreview[i]);
+    const shouldPromoteStatus =
+      book.status === "generating" &&
+      allPages.length >= PUBLIC_PREVIEW_LIMIT;
+
+    if (previewMismatch) {
+      await supabase
+        .from("moobook_books")
+        .update({ preview_pages: desiredPreview })
+        .eq("id", bookId);
+    }
+
+    let finalStatus: BookStatus = book.status;
+    if (shouldPromoteStatus) {
+      // status = 'generating' 인 row 만 preview_ready 로. paid 로 이미 올라간
+      // row 는 row count 0 이라 안전.
+      const { data: promoted } = await supabase
+        .from("moobook_books")
+        .update({ status: "preview_ready" })
+        .eq("id", bookId)
+        .eq("status", "generating")
+        .select("status")
+        .maybeSingle();
+      if (promoted) {
+        finalStatus = "preview_ready";
+      } else {
+        // 다른 워커/결제가 status 를 바꿨을 가능성 — 실제 값을 다시 읽어 응답.
+        const { data: fresh } = await supabase
+          .from("moobook_books")
+          .select("status")
+          .eq("id", bookId)
+          .single();
+        finalStatus =
+          (fresh?.status as BookStatus | undefined) ?? book.status;
+      }
+    }
+
     return {
       done: true,
       totalPages,
       completedPages,
-      status: book.status,
+      status: finalStatus,
     };
   }
 
@@ -135,13 +204,23 @@ export async function generateNextPage(
     };
   }
 
-  // 처음 진입할 때만 status 를 generating 으로 (preview_ready 가 이미면 유지)
+  // 처음 진입할 때만 status 를 generating 으로 (preview_ready 가 이미면 유지).
+  // update 가 실제로 row 를 바꾼 경우에만 effectiveStatus 를 갱신해야 한다
+  // (Codex round 2 #3 — 조건 불일치로 0 row affect 인데 effectiveStatus 만
+  // generating 으로 두면, 아래 preview_ready 승격이 실제 paid/preview_ready
+  // row 를 덮어쓸 수 있음).
+  let effectiveStatus: BookStatus = book.status;
   if (book.status === "pending" || book.status === "faces_ready") {
-    await supabase
+    const { data: promoted } = await supabase
       .from("moobook_books")
       .update({ status: "generating" })
       .eq("id", bookId)
-      .in("status", ["pending", "faces_ready"]);
+      .in("status", ["pending", "faces_ready"])
+      .select("status")
+      .maybeSingle();
+    if (promoted) {
+      effectiveStatus = "generating";
+    }
   }
 
   // atomic update: 같은 attemptId 가 그대로일 때만 우리가 lease 를 잡는다.
@@ -200,20 +279,18 @@ export async function generateNextPage(
   // 다른 워커가 동시 진행하지 않도록 attemptId 일치 조건. update 결과를 select 로
   // 확인해 우리가 실제로 반영했는지 검증한다 (Codex #1).
   const newAllPages = [...allPages, url];
-  const PUBLIC_PREVIEW_LIMIT = 3;
+  // PUBLIC_PREVIEW_LIMIT 는 위에서 선언 — dev=1 / prod=3.
   const newPreviewPages = newAllPages.slice(0, PUBLIC_PREVIEW_LIMIT);
   // preview_ready 는 최소 PUBLIC_PREVIEW_LIMIT 장 채워진 후에 진입.
-  // (Codex #7: 1장 만으로 결제 CTA 가 노출되지 않게)
   const reachedPreviewReady = newAllPages.length >= PUBLIC_PREVIEW_LIMIT;
 
+  // status 승격은 별도 update 로 분리. 같은 statement 에 묶으면 결제와 동시에
+  // paid 로 올라간 row 를 preview_ready 로 덮을 수 있음 (Codex round 2 #1, #3).
   const update: Record<string, unknown> = {
     all_pages: newAllPages,
     preview_pages: newPreviewPages,
     page_generation_lease: null,
   };
-  if (reachedPreviewReady && book.status === "generating") {
-    update.status = "preview_ready";
-  }
 
   const { data: applied } = await supabase
     .from("moobook_books")
@@ -256,8 +333,27 @@ export async function generateNextPage(
   const appliedAllPages =
     ((applied as { all_pages?: string[] | null }).all_pages as string[] | null) ??
     newAllPages;
-  const appliedStatus =
+  let appliedStatus =
     ((applied as { status?: BookStatus }).status as BookStatus) ?? book.status;
+
+  // preview_ready 승격은 status='generating' 가드 update 로 분리 (Codex round 2
+  // #1, #3). 결제 confirm 이 동시에 paid 로 올린 경우엔 row count 0 이라 안전.
+  if (
+    reachedPreviewReady &&
+    effectiveStatus === "generating" &&
+    appliedStatus === "generating"
+  ) {
+    const { data: promoted } = await supabase
+      .from("moobook_books")
+      .update({ status: "preview_ready" })
+      .eq("id", bookId)
+      .eq("status", "generating")
+      .select("status")
+      .maybeSingle();
+    if (promoted) {
+      appliedStatus = "preview_ready";
+    }
+  }
 
   return {
     generated: { pageNumber: nextPageNumber, url },

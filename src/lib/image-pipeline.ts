@@ -16,6 +16,10 @@ import {
   type ImageReference,
 } from "@/lib/image-generators";
 import { getDefaultImageModel } from "@/lib/openai-image";
+import {
+  IMAGE_QUALITY,
+  PREVIEW_PAGE_COUNT_BEFORE_PAYMENT,
+} from "@/lib/utils/env";
 
 const MOCK_MODE = isGeminiMockMode();
 
@@ -30,12 +34,11 @@ const MOCK_IMAGES = Array.from({ length: 12 }, (_, i) =>
 const BOOK_BUCKET = "moobook_photos";
 
 /**
- * /api/generate 응답까지 동기로 생성할 preview 페이지 수.
- * 1로 둔 이유: dev/serverless 환경에서 동기 응답 대기 시간을 줄여
- * 라우트 핸들러가 timeout/abort에 노출되는 윈도우를 좁힌다.
- * 나머지 페이지는 응답 후 백그라운드로 진행되며 클라이언트가 폴링으로 받음.
+ * 결제 전에 미리 생성해서 보여 줄 페이지 수.
+ * dev 1장 / prod 3장 — 비용 절감 목적.
+ * 결제 후에는 12장 전체를 채운다.
  */
-export const PREVIEW_PAGE_COUNT = 1;
+export const PREVIEW_PAGE_COUNT = PREVIEW_PAGE_COUNT_BEFORE_PAYMENT;
 
 const FACE_SWAP_ENABLED = process.env.ENABLE_FACE_SWAP === "true";
 
@@ -158,7 +161,7 @@ async function generateSinglePage(
         prompt,
         references,
         size: "1024x1536",
-        quality: "high",
+        quality: IMAGE_QUALITY,
         modelId: imageModel,
         tag,
         pageNumber: page.pageNumber,

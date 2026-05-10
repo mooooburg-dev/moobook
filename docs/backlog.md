@@ -50,6 +50,22 @@ PR #13(얼굴 anchor 흐름 + polling-driven 페이지 생성) 머지 이후 누
 - PDF 생성 마무리 (`lib/utils/pdf-generator.ts`)
 - 사진 24시간 TTL 자동 삭제 cron
 
+### 결제 confirm 보안 강화 (Codex P1, 2026-05-10)
+**현재**: `/api/payment/confirm` 이 body 의 `bookId` 를 그대로 받아 `status=paid` 처리. 클라이언트가 임의의 bookId 를 보내면 결제와 무관한 book 도 paid 로 올라가는 결함.
+**액션** (결제 위젯 연동 PR 에서 같이):
+- `moobook_orders` 에 `(orderId, book_id, amount, payment_status)` 를 결제 위젯 호출 *전에* INSERT.
+- confirm 에서 `orderId` 로 주문 조회 → `amount` / `book_id` / `payment_status` 검증 후 paid 처리.
+- 검증된 `book_id` 로만 `moobook_books.status = paid` 업데이트.
+- 토스 confirm 응답의 `paymentKey` / `approvedAt` / `method` 도 주문에 저장.
+
+### 결제 후 생성 서버 주도화 (Codex P1, 2026-05-10)
+**현재**: 결제 후 2~12페이지 생성은 클라이언트 폴링에 의존. 결제 직후 사용자가 브라우저를 닫으면 책이 영영 완성되지 않음.
+**액션** (큐 시스템 #13 과 묶어서):
+- confirm 성공 시 워커/큐에 "book finalize" job enqueue (Inngest / QStash / Supabase pg_cron).
+- 워커가 paid book 중 `all_pages.length < 12` 인 것을 주기적으로 또는 즉시 채움.
+- 완성되면 이메일/푸시 알림.
+- 임시 대안 (PR 분리 시): cron 으로 "1시간 이상 paid 인데 미완성인 book" 회수해서 마저 채우기.
+
 ## 우선순위 3: 인프라 (사용량 임계점 도달 시)
 
 ### 큐 시스템 도입 (#13)
