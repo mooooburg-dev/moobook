@@ -267,7 +267,10 @@ export async function generateNextPage(
     };
   }
 
-  // 페이지 1장 생성
+  // 페이지 1장 생성.
+  // page 2 부터는 같은 book 의 page 1 결과(=allPages[0])를 style anchor 로 함께
+  // 넘겨, 페이지 간 얼굴 stylization 정도와 캐릭터 디자인이 흔들리지 않게 한다.
+  const styleAnchorUrl = nextPageNumber > 1 ? (allPages[0] ?? null) : null;
   let url: string;
   try {
     url = await generateOnePage({
@@ -276,6 +279,7 @@ export async function generateNextPage(
       bookId,
       scenarioId: scenario.id,
       gender: book.child_gender,
+      styleAnchorUrl,
     });
   } catch (err) {
     if (err instanceof PhotoUnsuitableError) {
