@@ -16,8 +16,7 @@
 import { resolveScenario } from "@/lib/scenarios";
 import { resolvePhotos } from "@/lib/face-candidates/service";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateOnePage } from "@/lib/image-pipeline";
-import { getDefaultImageModel } from "@/lib/openai-image";
+import { generateOnePage, PhotoUnsuitableError } from "@/lib/image-pipeline";
 import { PREVIEW_PAGE_COUNT_BEFORE_PAYMENT } from "@/lib/utils/env";
 import type { Book, BookStatus } from "@/types";
 
@@ -45,6 +44,11 @@ export interface NextPageResult {
   busy?: boolean;
   /** 우리가 생성한 결과가 다른 워커의 lease 에 의해 폐기됐다 (orphan storage 가능) */
   staleResultDiscarded?: boolean;
+  /**
+   * 사진이 face-swap에 부적합 (또는 사전 일러스트 누락)으로 판정돼 책 생성 중단.
+   * book.status 가 photo_unsuitable 로 전이됐고, 사용자에겐 재업로드 안내가 노출돼야 한다.
+   */
+  photoUnsuitable?: { pageNumber: number; cause: string };
   /** busy 일 때 클라이언트가 다음 폴링까지 기다릴 권장 시간 */
   retryAfterMs?: number;
   totalPages: number;
@@ -264,16 +268,46 @@ export async function generateNextPage(
   }
 
   // 페이지 1장 생성
-  const imageModel = book.image_model ?? getDefaultImageModel();
-  const url = await generateOnePage({
-    page: targetPage,
-    photoUrl,
-    bookId,
-    scenarioId: scenario.id,
-    gender: book.child_gender,
-    anchorFaceUrl: book.anchor_face_url ?? null,
-    imageModel,
-  });
+  let url: string;
+  try {
+    url = await generateOnePage({
+      page: targetPage,
+      photoUrl,
+      bookId,
+      scenarioId: scenario.id,
+      gender: book.child_gender,
+    });
+  } catch (err) {
+    if (err instanceof PhotoUnsuitableError) {
+      // 사진 부적합 — book 을 photo_unsuitable 로 마킹하고 lease 해제.
+      // 우리가 잡은 lease 가 만료/교체되지 않았을 때만 전이한다 (race 방지).
+      await supabase
+        .from("moobook_books")
+        .update({
+          status: "photo_unsuitable",
+          page_generation_lease: null,
+        })
+        .eq("id", bookId)
+        .eq("page_generation_lease->>attemptId", newLease.attemptId);
+
+      console.warn(
+        `[page-generation] photo_unsuitable: bookId=${bookId} page=${err.pageNumber} cause=${err.cause}`
+      );
+      return {
+        photoUnsuitable: { pageNumber: err.pageNumber, cause: err.cause },
+        totalPages,
+        completedPages,
+        status: "photo_unsuitable",
+      };
+    }
+    // 그 외 에러는 lease 만 풀고 throw — 클라이언트 폴링이 재시도한다.
+    await supabase
+      .from("moobook_books")
+      .update({ page_generation_lease: null })
+      .eq("id", bookId)
+      .eq("page_generation_lease->>attemptId", newLease.attemptId);
+    throw err;
+  }
 
   // 결과 반영: all_pages append + preview_pages 처음 N장 한정 동기화 + lease 해제.
   // 다른 워커가 동시 진행하지 않도록 attemptId 일치 조건. update 결과를 select 로

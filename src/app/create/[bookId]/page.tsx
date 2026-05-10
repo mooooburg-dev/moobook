@@ -148,10 +148,15 @@ export default function BookDetailPage() {
             completedPages?: number;
             totalPages?: number;
             retryAfterMs?: number;
+            photoUnsuitable?: { pageNumber: number; cause: string };
+            status?: string;
           };
           // 결과를 받아 DB 갱신 — fetchBook 으로 UI 동기화
           await fetchBook();
+          if (data.photoUnsuitable) break;
           if (data.done) break;
+          // 결제 전 미리보기 단계가 끝났으면 멈춘다 — 나머지 9장은 결제 후 생성.
+          if (data.status === "preview_ready") break;
           if (data.busy) {
             const wait = data.retryAfterMs ?? PAGE_GEN_INTERVAL_MS;
             await new Promise((r) => setTimeout(r, wait));
@@ -198,6 +203,28 @@ export default function BookDetailPage() {
         <div className="text-4xl mb-4">😢</div>
         <p className="text-brand-pink mb-4">{error}</p>
         <Button onClick={() => router.push("/create")}>다시 시작하기</Button>
+      </div>
+    );
+  }
+
+  if (book?.status === "photo_unsuitable") {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center page-enter">
+        <div className="text-4xl mb-4">📷</div>
+        <h1
+          className="text-xl text-text mb-3"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          사진이 동화책에 맞지 않아요
+        </h1>
+        <p className="text-text-light text-sm mb-6 leading-relaxed">
+          업로드한 사진의 얼굴이 또렷하게 보이지 않아 동화책 일러스트로 합성하기
+          어려웠어요. 정면을 바라보고 얼굴이 잘 보이는 다른 사진으로 다시
+          시작해 주세요.
+        </p>
+        <Button onClick={() => router.push("/create")}>
+          다른 사진으로 다시 만들기
+        </Button>
       </div>
     );
   }

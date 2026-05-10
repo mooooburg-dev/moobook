@@ -272,6 +272,7 @@ export default function CreatePage() {
           onSelectCustom={() => setCustomModalOpen(true)}
           customKeywords={customKeywords}
           customTopic={customTopic}
+          gender={childGender}
         />
       </section>
 

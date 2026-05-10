@@ -4,6 +4,7 @@ export type BookStatus =
   | "faces_ready"
   | "faces_failed"
   | "generating"
+  | "photo_unsuitable"
   | "preview_ready"
   | "paid"
   | "printing"
