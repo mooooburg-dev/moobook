@@ -36,6 +36,15 @@ const COVER_COMPOSITION_RULES =
  */
 type SceneMode = "cover" | "establishing" | "medium";
 
+/**
+ * face-swap 호환성을 위한 공통 카메라 규칙.
+ * 모든 페이지에서 아이의 얼굴이 정면(또는 거의 정면, ±15° 이내)으로 카메라를 향해야 한다.
+ * 측면·뒤돌아본 모습·과도한 3/4 각도는 face-swap 모델이 얼굴 landmark 검출에 실패해
+ * 합성이 빈 출력으로 떨어진다. 사진 부적합이 아니라 일러스트 부적합 케이스를 방지.
+ */
+const FACE_VISIBILITY_RULE =
+  "CRITICAL face rule (overrides any conflicting scene description): the child's face MUST be turned toward the camera — front-facing or near-frontal only, never strict profile, never back of head, never tilted more than 15 degrees away from the viewer. Both eyes, nose, and mouth fully visible and clearly readable. If the action would naturally show the child from the side or behind (e.g. walking away, looking at another character beside them, peering down), reframe so the child's body angles toward the action while the head turns back to the camera.";
+
 const SCENE_MODE_RULES: Record<SceneMode, string> = {
   cover:
     "Composition: cover layout — child in the lower half, top 40% calm sky/atmosphere for title overlay. No text in image.",
@@ -249,6 +258,7 @@ export function buildSessionSystemPrompt(gender: ChildGender): string {
     "Keep the character's face, hair, outfit, and art style perfectly consistent across every page I ask for.",
     STYLE_RULES,
     COMPOSITION_RULES,
+    FACE_VISIBILITY_RULE,
     "When I describe a page, respond only with the rendered illustration image (no text, no explanation).",
   ].join(" ");
 }
@@ -269,7 +279,7 @@ export function buildPagePrompt(
   const composition = isCover
     ? COVER_COMPOSITION_RULES
     : "Wide shot, full body visible, the child small within the frame (about 25-35% of image height). Emphasize the environment and surroundings.";
-  return `Page ${page.pageNumber}: ${action} ${consistency} ${composition}`;
+  return `Page ${page.pageNumber}: ${action} ${consistency} ${composition} ${FACE_VISIBILITY_RULE}`;
 }
 
 /**
@@ -289,6 +299,7 @@ export function buildSinglePageRegenerationPrompt(
     "Match the character in the reference image exactly — same face, same hair, same outfit, same art style.",
     STYLE_RULES,
     isCover ? COVER_COMPOSITION_RULES : COMPOSITION_RULES,
+    FACE_VISIBILITY_RULE,
     `Page ${page.pageNumber}: ${action}`,
   ].join(" ");
 }
@@ -345,6 +356,7 @@ export function buildAnchoredPagePrompt(
     "Priority: 1) Identity — same face/hair/outfit as the anchor. 2) Style — warm watercolor children's book illustration consistent with the anchor. 3) Scene — render the action below.",
     referenceRoles,
     SCENE_MODE_RULES[sceneMode],
+    FACE_VISIBILITY_RULE,
     "No text, no words, no letters in the image.",
     SAFETY_RULES,
     `Page ${page.pageNumber}: ${action}`,

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getScenariosByCategory } from "@/lib/scenarios";
-import type { Scenario, ScenarioCategory, ThemeId } from "@/types";
+import type { ChildGender, Scenario, ScenarioCategory, ThemeId } from "@/types";
 import ScenarioPreviewModal from "./ScenarioPreviewModal";
 
 interface ThemeSelectorProps {
@@ -11,6 +11,8 @@ interface ThemeSelectorProps {
   onSelectCustom?: () => void;
   customKeywords?: [string, string, string] | null;
   customTopic?: string | null;
+  /** 성별이 정해지면 사전 일러스트 완비된 시나리오만 노출. 미지정 시 전체 노출(로딩 중 fallback). */
+  gender?: ChildGender;
 }
 
 type PresetThemeConfigId = Exclude<ThemeId, "custom">;
@@ -92,19 +94,43 @@ export default function ThemeSelector({
   onSelectCustom,
   customKeywords,
   customTopic,
+  gender,
 }: ThemeSelectorProps) {
   const categories = getScenariosByCategory();
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const [completeScenarioIds, setCompleteScenarioIds] = useState<Set<string> | null>(
+    null
+  );
   const [previewScenario, setPreviewScenario] = useState<Scenario | null>(null);
 
   useEffect(() => {
-    fetch("/api/scenarios/thumbnails")
+    const params = gender ? `?gender=${gender}` : "";
+    fetch(`/api/scenarios/thumbnails${params}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.thumbnails) setThumbnails(data.thumbnails);
+        if (!data) return;
+        if (data.thumbnails) setThumbnails(data.thumbnails);
+        if (Array.isArray(data.completeScenarioIds)) {
+          setCompleteScenarioIds(new Set<string>(data.completeScenarioIds));
+        }
       })
       .catch(() => {});
-  }, []);
+  }, [gender]);
+
+  /**
+   * 사전 일러스트가 모든 페이지 완비된 시나리오만 보여준다.
+   * completeScenarioIds 가 아직 도착하지 않은 동안엔 빈 목록이 아니라 전체를 노출해
+   * 로딩 중 깜빡임을 줄인다. 실제 선택 시점에 미완비라면 서버에서 다시 걸러진다.
+   */
+  const visibleCategories = useMemo(() => {
+    if (!completeScenarioIds) return categories;
+    return categories
+      .map((c) => ({
+        ...c,
+        scenarios: c.scenarios.filter((s) => completeScenarioIds.has(s.id)),
+      }))
+      .filter((c) => c.scenarios.length > 0);
+  }, [categories, completeScenarioIds]);
 
   const isCustomSelected = selectedTheme === "custom";
 
@@ -172,7 +198,7 @@ export default function ThemeSelector({
           </div>
         </div>
       )}
-      {categories.map(({ category, label, scenarios }) => (
+      {visibleCategories.map(({ category, label, scenarios }) => (
         <div key={category}>
           <h3
             className="text-base text-text-light mb-3 flex items-center gap-2"

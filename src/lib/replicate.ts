@@ -15,56 +15,110 @@ const replicate = MOCK_MODE
 const FACE_SWAP_MODEL_VERSION =
   "278a81e7ebb22db98bcba54de985d22cc1abeead2754eb1f2af717247be69b34"; // codeplugtech/face-swap
 
+export type FaceSwapResult =
+  | { ok: true; url: string }
+  | { ok: false; reason: string };
+
 /**
- * codeplugtech/face-swap으로 일러스트에 실제 아이 얼굴 합성
- * 실패 시 일러스트 원본 URL을 그대로 반환 (fallback)
+ * Replicate prediction output 은 모델/버전에 따라 string | string[] | FileOutput
+ * 등 다양한 형태로 떨어진다. 가장 첫 번째 http URL 만 뽑는다.
+ */
+function extractOutputUrl(output: unknown): string | undefined {
+  if (!output) return undefined;
+  if (typeof output === "string") {
+    return output.startsWith("http") ? output : undefined;
+  }
+  if (Array.isArray(output)) {
+    for (const item of output) {
+      const url = extractOutputUrl(item);
+      if (url) return url;
+    }
+    return undefined;
+  }
+  // FileOutput (ReadableStream + url()) 대응
+  if (typeof output === "object" && output !== null) {
+    const candidate = output as { url?: () => URL | string };
+    if (typeof candidate.url === "function") {
+      try {
+        const u = candidate.url();
+        const str = typeof u === "string" ? u : u.toString();
+        return str.startsWith("http") ? str : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+  }
+  return undefined;
+}
+
+const SWAP_MAX_ATTEMPTS = 2;
+const SWAP_RETRY_DELAY_MS = 2000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * codeplugtech/face-swap으로 일러스트에 실제 아이 얼굴 합성.
+ * 일시 장애 대응을 위해 1회 retry. 최종 실패 시 ok:false.
+ *
+ * 주의: 반환되는 url은 Replicate 호스팅 URL(prediction TTL 약 1시간)이므로
+ * 호출자가 즉시 영구 Storage로 옮겨야 한다.
  */
 export async function swapFace(
   illustrationUrl: string,
   photoUrl: string,
   tag: string
-): Promise<string> {
+): Promise<FaceSwapResult> {
   if (!replicate) {
-    console.log(`${tag} [face-swap MOCK] 일러스트 원본 사용`);
-    return illustrationUrl;
+    // mock/dev: face-swap 우회. 일러스트 원본 URL을 성공으로 그대로 반환해
+    // 클라이언트 흐름(폴링·DB 갱신·UI)이 비용 없이 검증 가능하도록 한다.
+    console.log(`${tag} [face-swap MOCK] 일러스트 원본을 성공으로 반환`);
+    return { ok: true, url: illustrationUrl };
   }
 
-  try {
-    const prediction = await replicate.predictions.create({
-      version: FACE_SWAP_MODEL_VERSION,
-      input: {
-        input_image: illustrationUrl, // 타겟 (일러스트)
-        swap_image: photoUrl, // 소스 (원본 사진의 얼굴)
-      },
-      wait: true,
-    });
+  let lastReason = "unknown";
+  for (let attempt = 1; attempt <= SWAP_MAX_ATTEMPTS; attempt++) {
+    try {
+      const created = await replicate.predictions.create({
+        version: FACE_SWAP_MODEL_VERSION,
+        input: {
+          input_image: illustrationUrl,
+          swap_image: photoUrl,
+        },
+        wait: true,
+      });
 
-    if (prediction.status === "failed") {
-      throw new Error(`Face swap failed: ${prediction.error}`);
+      // wait:true 라도 일부 모델은 still processing 으로 떨어질 수 있어 추가 대기.
+      const prediction =
+        created.status === "starting" || created.status === "processing"
+          ? await replicate.wait(created, {})
+          : created;
+
+      if (prediction.status === "succeeded") {
+        const url = extractOutputUrl(prediction.output);
+        if (url) {
+          console.log(`${tag} [face-swap] 완료 (attempt ${attempt})`);
+          return { ok: true, url };
+        }
+        // succeeded 인데 URL 추출 실패 — 일러스트에서 얼굴 검출 실패한 케이스
+        // (측면·뒷모습 등). 사진이 아니라 일러스트 원인일 가능성이 높다.
+        lastReason = `succeeded but no http output (id=${prediction.id}) — likely face not detectable in the illustration`;
+      } else {
+        lastReason = `status=${prediction.status} error=${prediction.error ?? "none"} id=${prediction.id}`;
+      }
+
+      console.warn(
+        `${tag} [face-swap] attempt ${attempt}/${SWAP_MAX_ATTEMPTS} 실패: ${lastReason}`
+      );
+    } catch (err) {
+      lastReason = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `${tag} [face-swap] attempt ${attempt}/${SWAP_MAX_ATTEMPTS} 예외: ${lastReason}`
+      );
     }
 
-    let outputUrl: string | undefined;
-
-    if (prediction.status === "succeeded" && prediction.output) {
-      outputUrl = String(prediction.output);
-    } else if (
-      prediction.status === "starting" ||
-      prediction.status === "processing"
-    ) {
-      const result = await replicate.wait(prediction, {});
-      outputUrl = result.output ? String(result.output) : undefined;
+    if (attempt < SWAP_MAX_ATTEMPTS) {
+      await sleep(SWAP_RETRY_DELAY_MS);
     }
-
-    if (outputUrl?.startsWith("http")) {
-      console.log(`${tag} [face-swap] 완료`);
-      return outputUrl;
-    }
-
-    throw new Error("face swap output URL 없음");
-  } catch (err) {
-    console.warn(
-      `${tag} [face-swap] 실패, 일러스트 원본 사용 (${err instanceof Error ? err.message : err})`
-    );
-    return illustrationUrl;
   }
+
+  return { ok: false, reason: lastReason };
 }

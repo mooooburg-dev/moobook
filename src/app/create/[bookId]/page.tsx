@@ -72,12 +72,17 @@ export default function BookDetailPage() {
       }
 
       setInitialLoaded(true);
-      // 본문 페이지 생성 루프 시작 — 이 effect 가 한 번 트리거되고,
-      // 루프 자체는 별도 effect 에서 bookId 단위로만 dep 를 잡는다.
-      if (
+      // 본문 페이지 생성 루프 시작.
+      // - 결제 전: 미리보기 3장만 생성. 그 이상은 비용 낭비라 status === preview_ready 면 멈춘다.
+      // - 결제 후 (status === paid 또는 그 이후): 12장 모두 생성하기 위해 다시 루프 가동.
+      const completed = bookData.all_pages?.length ?? 0;
+      const needsPreview =
         bookData.status !== "paid" &&
-        (bookData.all_pages?.length ?? 0) < 12
-      ) {
+        bookData.status !== "preview_ready" &&
+        completed < 3;
+      const needsRemaining =
+        bookData.status === "paid" && completed < 12;
+      if (needsPreview || needsRemaining) {
         setShouldRunLoop(true);
       }
     }
@@ -113,10 +118,15 @@ export default function BookDetailPage() {
             completedPages?: number;
             totalPages?: number;
             retryAfterMs?: number;
+            photoUnsuitable?: { pageNumber: number; cause: string };
+            status?: string;
           };
           // 결과를 받아 DB 갱신 — fetchBook 으로 UI 동기화
           await fetchBook();
+          if (data.photoUnsuitable) break;
           if (data.done) break;
+          // 결제 전 미리보기 단계가 끝났으면 멈춘다 — 나머지 9장은 결제 후 생성.
+          if (data.status === "preview_ready") break;
           if (data.busy) {
             const wait = data.retryAfterMs ?? PAGE_GEN_INTERVAL_MS;
             await new Promise((r) => setTimeout(r, wait));
@@ -155,12 +165,34 @@ export default function BookDetailPage() {
     );
   }
 
+  if (book?.status === "photo_unsuitable") {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center page-enter">
+        <div className="text-4xl mb-4">📷</div>
+        <h1
+          className="text-xl text-text mb-3"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          사진이 동화책에 맞지 않아요
+        </h1>
+        <p className="text-text-light text-sm mb-6 leading-relaxed">
+          업로드한 사진의 얼굴이 또렷하게 보이지 않아 동화책 일러스트로 합성하기
+          어려웠어요. 정면을 바라보고 얼굴이 잘 보이는 다른 사진으로 다시
+          시작해 주세요.
+        </p>
+        <Button onClick={() => router.push("/create")}>
+          다른 사진으로 다시 만들기
+        </Button>
+      </div>
+    );
+  }
+
   const previewCount = book?.preview_pages?.length ?? 0;
   const allCount = book?.all_pages?.length ?? 0;
-  const totalPages = 12;
-  const allPagesReady = allCount >= totalPages;
-  // preview_pages 가 3장 이상 차야 미리보기 화면 진입 (Codex #7)
-  const showLoading = !initialLoaded || previewCount < 3;
+  // 미리보기는 3장. 결제 전까지는 그 이상 만들지 않는다 (비용 절약).
+  const PREVIEW_REQUIRED = 3;
+  const previewReady = previewCount >= PREVIEW_REQUIRED;
+  const showLoading = !initialLoaded || !previewReady;
 
   if (!book || showLoading) {
     return (
@@ -207,24 +239,16 @@ export default function BookDetailPage() {
         );
       })()}
 
-      <div className="mt-10 text-center">
-        {allPagesReady ? (
-          <Button
-            size="lg"
-            onClick={() => router.push(`/create/${params.bookId}/checkout`)}
-          >
-            📚 전체 동화책 구매하기
-          </Button>
-        ) : (
-          <div className="space-y-2">
-            <Button size="lg" disabled>
-              📚 동화책 만드는 중... ({allCount} / {totalPages})
-            </Button>
-            <p className="text-xs text-text-light">
-              남은 페이지는 자동으로 만들어지고 있어요. 잠시 후 결제할 수 있어요.
-            </p>
-          </div>
-        )}
+      <div className="mt-10 text-center space-y-2">
+        <Button
+          size="lg"
+          onClick={() => router.push(`/create/${params.bookId}/checkout`)}
+        >
+          📚 전체 동화책 구매하기
+        </Button>
+        <p className="text-xs text-text-light">
+          나머지 페이지는 결제 후 만들어드려요.
+        </p>
       </div>
     </div>
   );
