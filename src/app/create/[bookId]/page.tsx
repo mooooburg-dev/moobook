@@ -7,9 +7,12 @@ import BookPreview, { type BookPreviewPage } from "@/components/BookPreview";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { resolveScenario } from "@/lib/scenarios";
+import { PREVIEW_PAGE_COUNT_BEFORE_PAYMENT } from "@/lib/utils/env";
 import type { Book } from "@/types";
 
 const PAGE_GEN_INTERVAL_MS = 1000;
+const TOTAL_PAGES = 12;
+const PAID_STATUSES = new Set(["paid", "printing", "shipped", "completed"]);
 
 export default function BookDetailPage() {
   const params = useParams<{ bookId: string }>();
@@ -20,6 +23,17 @@ export default function BookDetailPage() {
   const redirectedToFaceSelect = useRef(false);
   const pageLoopActiveRef = useRef(false);
   const [shouldRunLoop, setShouldRunLoop] = useState(false);
+  // 같은 컴포넌트 라이프사이클 안에서 폴링 루프를 한 번 더 시작해야 할 때
+  // (= preview 종료 후 결제 → paid → 12장 채우기) effect dep 를 강제로 바꾸기
+  // 위한 nonce. shouldRunLoop 만 false→true 로 바꿔도 같은 batch 안에 합쳐지면
+  // effect 가 안 돌 수 있어 nonce 로 보장.
+  const [loopNonce, setLoopNonce] = useState(0);
+
+  const lastStatusRef = useRef<Book["status"] | null>(null);
+  // active loop 가 진행 중일 때 paid 전환 신호를 받으면, 신호를 잃지 않도록
+  // ref 에 기록해 두었다가 루프 종료 직후 재시작 트리거에 사용한다
+  // (Codex round 2 #4).
+  const pendingPaidRestartRef = useRef(false);
 
   const fetchBook = useCallback(async () => {
     const supabase = createClient();
@@ -35,6 +49,27 @@ export default function BookDetailPage() {
     }
 
     const newBook = data as Book;
+
+    // status 가 paid 로 전환되면 루프를 재가동한다.
+    // preview 단계에서 limit 만 채우고 종료된 루프가, 결제 완료 후 같은
+    // 컴포넌트 생명주기 안에서 12장까지 마저 채우도록 재시작 (Codex P2 #5).
+    const prevStatus = lastStatusRef.current;
+    const becamePaid =
+      prevStatus !== null &&
+      !PAID_STATUSES.has(prevStatus) &&
+      PAID_STATUSES.has(newBook.status);
+    const stillIncomplete = (newBook.all_pages?.length ?? 0) < TOTAL_PAGES;
+    if (becamePaid && stillIncomplete) {
+      if (pageLoopActiveRef.current) {
+        // 루프가 active 면 set 해도 effect 가 cleanup 되지 않음. 종료 직후
+        // 재시작하도록 ref 에 기록 (Codex round 2 #4).
+        pendingPaidRestartRef.current = true;
+      } else {
+        setShouldRunLoop(true);
+      }
+    }
+    lastStatusRef.current = newBook.status;
+
     setBook((prev) => {
       if (!prev) return newBook;
       const prevAll = prev.all_pages?.length ?? 0;
@@ -73,16 +108,11 @@ export default function BookDetailPage() {
 
       setInitialLoaded(true);
       // 본문 페이지 생성 루프 시작.
-      // - 결제 전: 미리보기 3장만 생성. 그 이상은 비용 낭비라 status === preview_ready 면 멈춘다.
-      // - 결제 후 (status === paid 또는 그 이후): 12장 모두 생성하기 위해 다시 루프 가동.
-      const completed = bookData.all_pages?.length ?? 0;
-      const needsPreview =
-        bookData.status !== "paid" &&
-        bookData.status !== "preview_ready" &&
-        completed < 3;
-      const needsRemaining =
-        bookData.status === "paid" && completed < 12;
-      if (needsPreview || needsRemaining) {
+      // 결제 전엔 미리보기 limit (dev=1/prod=3) 까지만, 결제 후엔 12장 전체까지.
+      const isPaid = PAID_STATUSES.has(bookData.status);
+      const currentCount = bookData.all_pages?.length ?? 0;
+      const target = isPaid ? TOTAL_PAGES : PREVIEW_PAGE_COUNT_BEFORE_PAYMENT;
+      if (currentCount < target) {
         setShouldRunLoop(true);
       }
     }
@@ -146,6 +176,18 @@ export default function BookDetailPage() {
         }
       }
       pageLoopActiveRef.current = false;
+      if (!cancelled) {
+        // 루프가 도는 사이 paid 전환 신호가 있었으면 즉시 재시작 (Codex round
+        // 2 #4). nonce 를 증가시켜 effect dep 를 강제로 바꿔 cleanup → 재실행
+        // 사이클이 한 번 더 일어나도록 한다.
+        if (pendingPaidRestartRef.current) {
+          pendingPaidRestartRef.current = false;
+          setLoopNonce((n) => n + 1);
+          setShouldRunLoop(true);
+        } else {
+          setShouldRunLoop(false);
+        }
+      }
     };
 
     loop();
@@ -153,7 +195,7 @@ export default function BookDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [shouldRunLoop, params.bookId, fetchBook]);
+  }, [shouldRunLoop, loopNonce, params.bookId, fetchBook]);
 
   if (error) {
     return (
@@ -189,15 +231,21 @@ export default function BookDetailPage() {
 
   const previewCount = book?.preview_pages?.length ?? 0;
   const allCount = book?.all_pages?.length ?? 0;
-  // 미리보기는 3장. 결제 전까지는 그 이상 만들지 않는다 (비용 절약).
-  const PREVIEW_REQUIRED = 3;
-  const previewReady = previewCount >= PREVIEW_REQUIRED;
+  const totalPages = TOTAL_PAGES;
+  // 결제 전엔 미리보기 limit (dev=1/prod=3) 만 채워지면 결제 버튼 활성화.
+  // 결제 후엔 12장 모두 차야 다음 단계로.
+  const isPaid = book ? PAID_STATUSES.has(book.status) : false;
+  const previewReady = previewCount >= PREVIEW_PAGE_COUNT_BEFORE_PAYMENT;
+  const allPagesReady = isPaid ? allCount >= totalPages : previewReady;
   const showLoading = !initialLoaded || !previewReady;
 
   if (!book || showLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20">
-        <GenerationProgress completedPages={allCount} totalPages={12} />
+        <GenerationProgress
+          completedPages={allCount}
+          totalPages={isPaid ? totalPages : PREVIEW_PAGE_COUNT_BEFORE_PAYMENT}
+        />
       </div>
     );
   }
@@ -239,16 +287,26 @@ export default function BookDetailPage() {
         );
       })()}
 
-      <div className="mt-10 text-center space-y-2">
-        <Button
-          size="lg"
-          onClick={() => router.push(`/create/${params.bookId}/checkout`)}
-        >
-          📚 전체 동화책 구매하기
-        </Button>
-        <p className="text-xs text-text-light">
-          나머지 페이지는 결제 후 만들어드려요.
-        </p>
+      <div className="mt-10 text-center">
+        {allPagesReady ? (
+          <Button
+            size="lg"
+            onClick={() => router.push(`/create/${params.bookId}/checkout`)}
+          >
+            📚 전체 동화책 구매하기
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <Button size="lg" disabled>
+              📚 동화책 만드는 중... (
+              {allCount} / {isPaid ? totalPages : PREVIEW_PAGE_COUNT_BEFORE_PAYMENT}
+              )
+            </Button>
+            <p className="text-xs text-text-light">
+              남은 페이지는 자동으로 만들어지고 있어요. 잠시 후 결제할 수 있어요.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
