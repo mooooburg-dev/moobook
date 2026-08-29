@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { verifyAdmin } from "@/lib/admin/auth";
 import { randomUUID } from "crypto";
 import OpenAI, { toFile } from "openai";
 import type {
@@ -69,12 +69,6 @@ type IllustrationMutationRow = {
   image_model?: string;
   updated_at: string;
 };
-
-async function verifyAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const auth = cookieStore.get("admin_auth");
-  return auth?.value === process.env.ADMIN_PASSWORD;
-}
 
 function isMissingImageModelColumnError(error: { message?: string }) {
   return (

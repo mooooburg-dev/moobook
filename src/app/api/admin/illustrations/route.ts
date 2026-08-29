@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { verifyAdmin } from "@/lib/admin/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scenarios, type PresetThemeId } from "@/lib/scenarios";
 import type { ChildGender, IllustrationStatus } from "@/types";
-
-async function verifyAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const auth = cookieStore.get("admin_auth");
-  return auth?.value === process.env.ADMIN_PASSWORD;
-}
 
 function isValidGender(value: unknown): value is ChildGender {
   return value === "boy" || value === "girl";

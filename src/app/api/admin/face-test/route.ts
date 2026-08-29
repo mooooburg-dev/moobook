@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { verifyAdmin } from "@/lib/admin/auth";
 import OpenAI, { toFile } from "openai";
 import type { ImageEditParamsNonStreaming } from "openai/resources/images";
 
@@ -38,12 +38,6 @@ interface FaceTestResultRow {
   image_model: string;
   favorited: boolean;
   created_at: string;
-}
-
-async function verifyAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const auth = cookieStore.get("admin_auth");
-  return auth?.value === process.env.ADMIN_PASSWORD;
 }
 
 function isValidIntensity(value: unknown): value is Intensity {

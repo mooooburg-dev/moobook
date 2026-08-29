@@ -1,10 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export async function GET(request: NextRequest) {
-  const cookie = request.cookies.get("admin_auth");
-  const adminPassword = process.env.ADMIN_PASSWORD;
+import { verifyAdmin } from "@/lib/admin/auth";
 
-  if (!adminPassword || cookie?.value !== adminPassword) {
+export async function GET() {
+  if (!(await verifyAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
