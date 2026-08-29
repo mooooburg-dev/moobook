@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { replaceChildName } from "@/lib/utils/korean-name";
 import { wrapTextWithCanvas } from "@/lib/utils/wrap-text";
+import { SOFTCOVER_PRICE, formatKrw } from "@/lib/pricing";
 
 export interface BookPreviewPage {
   imageUrl: string;
@@ -16,6 +17,8 @@ interface BookPreviewProps {
   childName?: string | null;
   totalPages?: number; // 전체 페이지 수 (locked 모드에서 사용)
   locked?: boolean; // 결제 전이면 미리보기만
+  /** 잠금 오버레이의 구매 CTA. 전달되면 오버레이 안에 결제 버튼을 노출한다. */
+  onCheckout?: () => void;
 }
 
 const TEXT_FONT_SIZE = 16;
@@ -27,6 +30,7 @@ export default function BookPreview({
   childName,
   totalPages = 12,
   locked = false,
+  onCheckout,
 }: BookPreviewProps) {
   const [currentPage, setCurrentPage] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -124,18 +128,37 @@ export default function BookPreview({
           )}
 
           {isLockedPage && (
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
-              <div className="text-center text-white px-6 bg-black/30 rounded-2xl py-6">
+            <div className="absolute inset-0 bg-black/45 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="text-center text-white px-6 bg-black/35 rounded-2xl py-6 max-w-xs">
                 <span className="text-3xl block mb-2">🔒</span>
                 <p
-                  className="text-lg mb-2"
+                  className="text-lg"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
-                  미리보기 끝!
+                  전체 {totalPages}페이지가 완성됐어요
                 </p>
-                <p className="text-sm opacity-80">
-                  전체 {totalPages}페이지 동화책을 보려면 결제해주세요
+                <p className="text-sm opacity-85 mt-1 mb-4">
+                  실물 소프트커버로 만들어 집까지 배송해 드려요
                 </p>
+
+                <div className="text-2xl mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+                  {formatKrw(SOFTCOVER_PRICE)}
+                </div>
+                <ul className="text-xs opacity-80 space-y-0.5 mb-4">
+                  <li>📚 {totalPages}페이지 실물 소프트커버</li>
+                  <li>🚚 배송비 무료</li>
+                  <li>💛 세상에 하나뿐인 우리 아이 동화책</li>
+                </ul>
+
+                {onCheckout && (
+                  <Button
+                    size="lg"
+                    onClick={onCheckout}
+                    className="w-full bg-brand hover:bg-brand-pink text-white"
+                  >
+                    📖 전체 동화책 구매하기
+                  </Button>
+                )}
               </div>
             </div>
           )}

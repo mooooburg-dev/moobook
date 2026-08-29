@@ -1,6 +1,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
+import SampleGallery from "@/components/SampleGallery";
+
+// 샘플 갤러리(사전 생성 일러스트)를 주기적으로 반영하기 위한 ISR.
+export const revalidate = 3600;
 
 function WaveDivider({
   fillFrom,
@@ -196,7 +200,7 @@ export default function Home() {
               </Link>
             </div>
             <p className="mt-4 text-sm text-text-light">
-              ✨ 미리보기는 무료! 3분이면 완성돼요
+              ✨ 3장 무료 미리보기 · 회원가입 없이 바로 시작
             </p>
           </div>
         </div>
@@ -241,14 +245,14 @@ export default function Home() {
                 step: '2',
                 emoji: '🎨',
                 title: '테마 선택',
-                desc: '숲속 대모험, 우주 탐험대 중 선택!',
+                desc: '10가지 테마와 나만의 커스텀 이야기 중 선택!',
                 color: 'bg-brand-secondary',
               },
               {
                 step: '3',
                 emoji: '📖',
                 title: '동화책 완성',
-                desc: '12페이지 동화책이 뚝딱 완성돼요',
+                desc: '무료 미리보기 3장을 보고, 결제하면 12페이지 완성',
                 color: 'bg-brand-blue',
               },
             ].map((item) => (
@@ -276,6 +280,9 @@ export default function Home() {
       </section>
 
       <WaveDivider fillFrom="#FEF3E2" fillTo="#FFF8F0" />
+
+      {/* 결과물 샘플 갤러리 (생성된 일러스트가 있을 때만 노출) */}
+      <SampleGallery />
 
       {/* 가격 안내 */}
       <section className="w-full py-16 px-4 bg-cream relative">
@@ -322,7 +329,7 @@ export default function Home() {
           지금 바로 만들어 볼까요?
         </h2>
         <p className="text-text-light mb-8 max-w-md mx-auto">
-          사진 한 장이면 3분 만에 미리보기를 받아볼 수 있어요
+          사진 한 장이면 무료 미리보기 3장을 받아볼 수 있어요
         </p>
         <Link href="/create">
           <Button size="lg">✨ 동화책 만들기 시작</Button>
