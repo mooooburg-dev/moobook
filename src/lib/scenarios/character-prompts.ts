@@ -1,37 +1,67 @@
 import type { ChildGender, ScenarioPage, ThemeId } from "@/types";
+import {
+  getCurrentSeason,
+  resolveOutfit,
+  resolveSeasonalOutfit,
+  type Season,
+} from "@/lib/scenarios/seasonal-outfit";
 
 type PresetScenarioId = Exclude<ThemeId, "custom">;
 
-const CHARACTER_OUTFIT: Record<ChildGender, string> = {
-  boy: "a light blue short-sleeve cotton t-shirt, beige knee-length shorts, and white sneakers (summer outfit)",
-  girl: "a soft pink short-sleeve blouse, a light floral pattern skirt above the knee, and white sandals (summer outfit)",
-};
+/**
+ * 캐릭터 나이 priming.
+ * 3~4세 유아의 신체 비율(2~3등신 가까운 둥근 비례)을 명시해
+ * 5세 이상의 키 큰 아동으로 그려지는 것을 방지한다.
+ */
+const CHARACTER_AGE_DESCRIPTOR =
+  "a 3 to 4 year old toddler-aged child with a soft round face, gentle baby cheeks, large round eyes, and a small body in 2.5 to 3 head-tall proportions typical of a 3-4 year old";
 
 /**
  * 인종/외형 prior를 직접 박지 않는다 (Codex 4번 피드백). 사진 reference에서
  * 실제 아이의 얼굴 특징을 그대로 가져와야 하므로, "Korean child"처럼 일반화된
  * 외형 prior는 reference fidelity를 약화시킨다.
+ *
+ * scenarioId와 season을 받아 해당 시점/시나리오에 맞는 옷차림을 동적으로 합성.
+ * 시나리오 인자가 없으면 face-candidate 등 시나리오 비종속 컨텍스트로 간주.
  */
-const CHARACTER_APPEARANCE: Record<ChildGender, string> = {
-  boy: `a cute 5-year-old child (boy) wearing ${CHARACTER_OUTFIT.boy}. Preserve the child's actual facial features, skin tone, hair color, and hairstyle from the reference photos exactly — do not stereotype or alter the child's identity.`,
-  girl: `a cute 5-year-old child (girl) wearing ${CHARACTER_OUTFIT.girl}. Preserve the child's actual facial features, skin tone, hair color, and hairstyle from the reference photos exactly — do not stereotype or alter the child's identity.`,
-};
+function buildCharacterAppearance(
+  gender: ChildGender,
+  scenarioId: ThemeId | null,
+  season: Season
+): string {
+  const outfit = scenarioId
+    ? resolveOutfit(scenarioId, gender, season)
+    : resolveSeasonalOutfit(gender, season);
+  const subject = `a cute ${CHARACTER_AGE_DESCRIPTOR} (${gender}) wearing ${outfit.description}`;
+  return `${subject}. Preserve the child's actual facial features, skin tone, hair color, and hairstyle from the reference photos exactly — do not stereotype or alter the child's identity.`;
+}
 
 const STYLE_RULES =
-  "Art style: warm watercolor children's book illustration, soft pastel colors, gentle lighting, storybook atmosphere, consistent art style across every page, no text, no words, no letters, no captions, portrait orientation.";
+  "Art style: warm watercolor children's book illustration, soft pastel colors, gentle lighting, storybook atmosphere, consistent art style across every page, no text, no words, no letters, no captions, A4 portrait orientation (taller than wide).";
+
+/**
+ * 캐릭터 수직 위치 안전 규칙.
+ * 책이 정사각형 레이아웃으로 잘리거나 reflow 될 수 있어, 캐릭터의 머리와 발이
+ * 너무 위/아래에 붙으면 정사각형 crop 시 잘려 나간다. 그래서 모든 페이지에서
+ * 아이의 핵심 영역(얼굴~몸통)이 프레임 세로 중앙 밴드(상단 25% ~ 하단 25%
+ * 사이의 중간 50% 구간)에 들어오도록 강제한다. 단, 1페이지 커버는 상단 40%
+ * 영역을 제목 오버레이용으로 비우는 별도 규칙이 우선한다.
+ */
+const VERTICAL_SAFE_BAND_RULE =
+  "CRITICAL vertical placement rule (overrides composition unless the page is the cover): the child's head/face must be inside the central 50% of the frame height — never above the top 25% line, never below the bottom 25% line. The child's body and key visual mass should sit within this central band so the image still reads correctly when cropped to a square or near-square aspect ratio. Do not place the child too high (head touching the top edge) or too low (feet hugging the bottom edge).";
 
 // 레거시 (Gemini chat 세션 priming 경로에서만 사용). 본문 anchor 흐름은 SCENE_MODE 사용.
 const COMPOSITION_RULES =
-  "Composition: wide establishing shot, the child fully visible from head to toe at around 30% of frame height, rich environment around them.";
+  "Composition: medium-to-wide shot with the child's body and face anchored in the central vertical band of the frame, the surrounding environment filling the edges (top, bottom, left, right). Do not push the child to the top or bottom of the frame.";
 
 const COVER_COMPOSITION_RULES =
-  "Cover composition: book cover layout — child in the LOWER HALF (head/face below midline), top 40% calm uncluttered background (sky/canopy/atmosphere) reserved for title overlay. Child fully visible head to toe. No text in the image itself.";
+  "Cover composition: book cover layout — child's face and upper body in the middle band of the frame (between 35% and 75% of frame height), top 35% calm uncluttered background (sky/canopy/atmosphere) reserved for title overlay. The child's head must NOT touch the very top, and the feet must NOT touch the very bottom. No text in the image itself.";
 
 /**
  * Anchor 기반 본문 prompt 전용 scene mode.
  * 페이지 종류에 따라 짧은 한 줄로 composition을 지정해 prompt 길이 폭주를 막는다 (Codex #4).
- * - cover: 제목 오버레이 영역을 비움
- * - establishing: 배경 강조 와이드샷
+ * - cover: 제목 오버레이 영역을 비움 (상단 35% safe area)
+ * - establishing: 배경 강조 와이드샷 (단, 캐릭터는 중앙 밴드)
  * - medium: 캐릭터 중심, 얼굴 유사도 우선
  */
 type SceneMode = "cover" | "establishing" | "medium";
@@ -47,11 +77,11 @@ const FACE_VISIBILITY_RULE =
 
 const SCENE_MODE_RULES: Record<SceneMode, string> = {
   cover:
-    "Composition: cover layout — child in the lower half, top 40% calm sky/atmosphere for title overlay. No text in image.",
+    "Composition: cover layout — child's face and upper body centered between 35% and 75% of the frame height, top 35% calm sky/atmosphere reserved for title overlay, bottom 25% containing the foreground/ground. No text in image.",
   establishing:
-    "Composition: wide scene with rich environment, child fully visible at roughly 35-45% of frame height.",
+    "Composition: wide scene with rich environment filling top, bottom, and side margins, child fully visible with the face/torso anchored in the central 50% vertical band of the frame.",
   medium:
-    "Composition: medium shot, child upper-body to mid-thigh visible, face clearly readable, soft environmental backdrop.",
+    "Composition: medium shot — child's upper body to mid-thigh visible, face clearly readable and centered vertically (face at roughly 40-55% of frame height), soft environmental backdrop on the edges.",
 };
 
 /**
@@ -246,18 +276,33 @@ function getActionDescription(
   return `The scene: ${page.sceneDescription}. The child is ${emotionDesc}.`;
 }
 
+interface PromptContext {
+  scenarioId: ThemeId;
+  /** 옷차림 결정용 계절. 미지정 시 호출 시점 현재 월 기준. */
+  season?: Season;
+}
+
+function pickSeason(ctx?: { season?: Season }): Season {
+  return ctx?.season ?? getCurrentSeason();
+}
+
 /**
  * 세션 첫 메시지용 시스템 프롬프트.
  * 전체 규칙(캐릭터 외형, 화풍, 제약)을 1회 priming으로 전달.
  */
-export function buildSessionSystemPrompt(gender: ChildGender): string {
-  const appearance = CHARACTER_APPEARANCE[gender];
+export function buildSessionSystemPrompt(
+  gender: ChildGender,
+  ctx?: PromptContext
+): string {
+  const season = pickSeason(ctx);
+  const appearance = buildCharacterAppearance(gender, ctx?.scenarioId ?? null, season);
   return [
     "You are creating a 12-page children's storybook series.",
-    `The main character is ${appearance}.`,
+    `The main character is ${appearance}`,
     "Keep the character's face, hair, outfit, and art style perfectly consistent across every page I ask for.",
     STYLE_RULES,
     COMPOSITION_RULES,
+    VERTICAL_SAFE_BAND_RULE,
     FACE_VISIBILITY_RULE,
     "When I describe a page, respond only with the rendered illustration image (no text, no explanation).",
   ].join(" ");
@@ -278,8 +323,8 @@ export function buildPagePrompt(
     : "Keep the character's appearance exactly the same as in previous pages, same face, hair, and outfit.";
   const composition = isCover
     ? COVER_COMPOSITION_RULES
-    : "Wide shot, full body visible, the child small within the frame (about 25-35% of image height). Emphasize the environment and surroundings.";
-  return `Page ${page.pageNumber}: ${action} ${consistency} ${composition} ${FACE_VISIBILITY_RULE}`;
+    : "Composition: medium-to-wide shot, full body visible, the child framed in the central vertical band of the image (face/torso between 30% and 70% of frame height). Emphasize the environment around the edges, but never push the child to the very top or bottom of the frame.";
+  return `Page ${page.pageNumber}: ${action} ${consistency} ${composition} ${VERTICAL_SAFE_BAND_RULE} ${FACE_VISIBILITY_RULE}`;
 }
 
 /**
@@ -289,16 +334,19 @@ export function buildPagePrompt(
 export function buildSinglePageRegenerationPrompt(
   scenarioId: ThemeId,
   page: ScenarioPage,
-  gender: ChildGender
+  gender: ChildGender,
+  ctx?: { season?: Season }
 ): string {
-  const appearance = CHARACTER_APPEARANCE[gender];
+  const season = pickSeason(ctx);
+  const appearance = buildCharacterAppearance(gender, scenarioId, season);
   const action = getActionDescription(scenarioId, page);
   const isCover = page.pageNumber === 1;
   return [
-    `The main character in the reference image is ${appearance}.`,
+    `The main character in the reference image is ${appearance}`,
     "Match the character in the reference image exactly — same face, same hair, same outfit, same art style.",
     STYLE_RULES,
     isCover ? COVER_COMPOSITION_RULES : COMPOSITION_RULES,
+    VERTICAL_SAFE_BAND_RULE,
     FACE_VISIBILITY_RULE,
     `Page ${page.pageNumber}: ${action}`,
   ].join(" ");
@@ -314,15 +362,17 @@ const SAFETY_RULES =
  */
 export function buildFaceCandidatePrompt(
   gender: ChildGender,
-  variantHint: string
+  variantHint: string,
+  ctx?: { season?: Season }
 ): string {
-  const outfit = CHARACTER_OUTFIT[gender];
+  const season = pickSeason(ctx);
+  const outfit = resolveSeasonalOutfit(gender, season);
   return [
     "Priority order (highest first):",
     "1. Identity: faithfully match the child's face from the reference photo(s) — eye shape, nose, mouth proportions, skin tone, hair color and hairstyle. The first reference photo is the primary identity reference.",
     "2. Style: warm watercolor children's book illustration, soft pastel colors, gentle storybook atmosphere.",
-    "3. Composition: front-facing half-body portrait, plain warm pastel background, no props, no text, no logos.",
-    `Render the character as a 5-year-old child wearing ${outfit}.`,
+    "3. Composition: front-facing half-body portrait, plain warm pastel background, no props, no text, no logos. Place the child's face in the central vertical band of the frame (face roughly at 35-55% of frame height).",
+    `Render the character as ${CHARACTER_AGE_DESCRIPTOR} (${gender}) wearing ${outfit.description}.`,
     "Preserve the child's actual ethnicity, skin tone, and hair naturally — do not stereotype or alter identity.",
     SAFETY_RULES,
     `Variant hint (style only, never alter face): ${variantHint}.`,
@@ -356,6 +406,7 @@ export function buildAnchoredPagePrompt(
     "Priority: 1) Identity — same face/hair/outfit as the anchor. 2) Style — warm watercolor children's book illustration consistent with the anchor. 3) Scene — render the action below.",
     referenceRoles,
     SCENE_MODE_RULES[sceneMode],
+    VERTICAL_SAFE_BAND_RULE,
     FACE_VISIBILITY_RULE,
     "No text, no words, no letters in the image.",
     SAFETY_RULES,

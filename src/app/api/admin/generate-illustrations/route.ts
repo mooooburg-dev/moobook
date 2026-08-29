@@ -372,7 +372,7 @@ async function generateBatch(
     `[ILL:${gender}] ${scenarioId}: generateBatch 진입 (model=${modelId})`
   );
   const scenario = scenarios[scenarioId];
-  const systemPrompt = buildSessionSystemPrompt(gender);
+  const systemPrompt = buildSessionSystemPrompt(gender, { scenarioId });
   const sessionId = randomUUID();
 
   try {
