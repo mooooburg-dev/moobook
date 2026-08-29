@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { COMPANY } from '@/lib/company';
 
 function Logo() {
   return (
@@ -72,7 +73,32 @@ export function SiteFooter() {
         <div className="flex justify-center mb-3">
           <Logo />
         </div>
-        <p className="text-xs text-text-lighter">
+
+        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-text-light mb-3">
+          <Link href="/terms" className="hover:text-text transition-colors">
+            이용약관
+          </Link>
+          <span className="text-text-lighter/40" aria-hidden>
+            ·
+          </span>
+          <Link href="/privacy" className="hover:text-text transition-colors font-bold">
+            개인정보처리방침
+          </Link>
+        </nav>
+
+        <div className="text-[11px] leading-5 text-text-light/90 max-w-xl mx-auto">
+          <p>
+            {COMPANY.bizName} &nbsp;|&nbsp; 대표 {COMPANY.ceo} &nbsp;|&nbsp;
+            사업자등록번호 {COMPANY.bizRegNo}
+          </p>
+          <p>통신판매업 신고 {COMPANY.mailOrderNo}</p>
+          <p>{COMPANY.address}</p>
+          <p>
+            고객문의 {COMPANY.email} / {COMPANY.phone}
+          </p>
+        </div>
+
+        <p className="text-xs text-text-lighter mt-4">
           &copy; 2026 무북(moobook). 아이들의 꿈을 동화책으로 만듭니다.
         </p>
         <div className="mt-4 flex justify-center">
