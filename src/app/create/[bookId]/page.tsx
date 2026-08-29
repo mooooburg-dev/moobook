@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import GenerationProgress from "@/components/GenerationProgress";
 import BookPreview, { type BookPreviewPage } from "@/components/BookPreview";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
 import { resolveScenario } from "@/lib/scenarios";
 import { PREVIEW_PAGE_COUNT_BEFORE_PAYMENT } from "@/lib/utils/env";
 import type { Book } from "@/types";
@@ -36,19 +35,19 @@ export default function BookDetailPage() {
   const pendingPaidRestartRef = useRef(false);
 
   const fetchBook = useCallback(async () => {
-    const supabase = createClient();
-    const { data, error: fetchError } = await supabase
-      .from("moobook_books")
-      .select("*")
-      .eq("id", params.bookId)
-      .single();
-
-    if (fetchError) {
-      setError("동화책을 찾을 수 없습니다.");
+    let newBook: Book;
+    try {
+      const res = await fetch(`/api/books/${params.bookId}`);
+      if (!res.ok) {
+        setError("동화책을 찾을 수 없습니다.");
+        return null;
+      }
+      const json = (await res.json()) as { book: Book };
+      newBook = json.book;
+    } catch {
+      setError("동화책을 불러오지 못했습니다.");
       return null;
     }
-
-    const newBook = data as Book;
 
     // status 가 paid 로 전환되면 루프를 재가동한다.
     // preview 단계에서 limit 만 채우고 종료된 루프가, 결제 완료 후 같은
@@ -283,6 +282,11 @@ export default function BookDetailPage() {
             pages={previewPages}
             childName={book.child_name}
             locked
+            onCheckout={
+              allPagesReady
+                ? () => router.push(`/create/${params.bookId}/checkout`)
+                : undefined
+            }
           />
         );
       })()}

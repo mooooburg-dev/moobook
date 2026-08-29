@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { verifyAdmin } from "@/lib/admin/auth";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateImageWithModel } from "@/lib/image-generators";
@@ -18,12 +18,6 @@ export const maxDuration = 300;
 
 const SMOKE_BUCKET = "moobook_photos";
 const SMOKE_PREFIX = "smoke";
-
-async function verifyAdmin(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const auth = cookieStore.get("admin_auth");
-  return auth?.value === process.env.ADMIN_PASSWORD;
-}
 
 interface SmokeBody {
   photoUrls: string[];

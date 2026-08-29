@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import type { OrderTier } from "@/types";
+import { SOFTCOVER_PRICE } from "@/lib/pricing";
 
 interface PricingTableProps {
   onSelect: (tier: OrderTier) => void;
@@ -10,7 +11,7 @@ const tiers = [
     id: "softcover" as OrderTier,
     name: "소프트커버 책",
     emoji: "📚",
-    price: 29900,
+    price: SOFTCOVER_PRICE,
     description: "실물 동화책 배송",
     features: [
       "12페이지 풀 컬러",

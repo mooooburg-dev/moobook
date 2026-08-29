@@ -8,8 +8,7 @@ import MultiPhotoUploader, {
 import ThemeSelector from "@/components/ThemeSelector";
 import CustomKeywordsModal from "@/components/CustomKeywordsModal";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
-import type { ChildGender, PhotoAsset, ThemeId } from "@/types";
+import type { ChildGender, ThemeId } from "@/types";
 
 export default function CreatePage() {
   const router = useRouter();
@@ -59,33 +58,25 @@ export default function CreatePage() {
       }
       const { urls } = (await uploadRes.json()) as { urls: string[] };
 
-      const uploadedAt = new Date().toISOString();
-      const photoAssets: PhotoAsset[] = urls.map((url, index) => ({
-        url,
-        order: index,
-        isPrimary: index === 0,
-        uploadedAt,
-      }));
-
-      // 2. book insert — status=pending 으로 시작.
-      // face-select 페이지가 진입 시 /api/face-candidates POST 로 락을 잡아
-      // pending → faces_generating → faces_ready 흐름을 만든다.
-      const supabase = createClient();
-      const { data: book, error: insertError } = await supabase
-        .from("moobook_books")
-        .insert({
-          status: "pending",
+      // 2. book 생성 — 서버 라우트에서 service role 로 INSERT.
+      // (RLS 활성화로 브라우저 직접 INSERT 는 차단됨)
+      // status=pending 으로 시작하며, face-select 페이지가 진입 시
+      // /api/face-candidates POST 로 락을 잡아 faces_generating → faces_ready 흐름을 만든다.
+      const bookRes = await fetch("/api/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           theme,
-          child_name: childName.trim(),
-          child_gender: childGender,
-          photo_url: urls[0],
-          photos: photoAssets,
-        })
-        .select("id")
-        .single();
-      if (insertError || !book) {
-        throw new Error(insertError?.message || "Book 생성 실패");
+          childName: childName.trim(),
+          childGender,
+          photos: urls.map((url) => ({ url })),
+        }),
+      });
+      if (!bookRes.ok) {
+        const bookErr = await bookRes.json().catch(() => ({}));
+        throw new Error(bookErr.error || "Book 생성 실패");
       }
+      const book = (await bookRes.json()) as { id: string };
 
       // 3. 커스텀 시나리오면 LLM으로 시나리오 생성
       if (theme === "custom") {

@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  UPLOADS_BUCKET,
+  createUploadSignedUrl,
+} from "@/lib/storage/uploads";
 
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+// MIME → 확장자 매핑. 확장자는 파일명이 아니라 검증된 MIME 에서 서버가 결정한다
+// (파일명 경유 경로 주입 차단).
+const MIME_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_FILES = 3;
 
 function validateFile(file: File): string | null {
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  if (!MIME_EXT[file.type]) {
     return "JPG, PNG, WEBP 형식만 지원합니다.";
   }
   if (file.size > MAX_BYTES) {
@@ -22,14 +32,14 @@ async function uploadOne(
   const validationError = validateFile(file);
   if (validationError) return { error: validationError };
 
-  const ext = file.name.split(".").pop() || "jpg";
+  const ext = MIME_EXT[file.type];
   const fileName = `${crypto.randomUUID()}.${ext}`;
   const filePath = `uploads/${fileName}`;
 
   const arrayBuffer = await file.arrayBuffer();
 
   const { error: uploadError } = await supabase.storage
-    .from("moobook_photos")
+    .from(UPLOADS_BUCKET)
     .upload(filePath, arrayBuffer, {
       contentType: file.type,
       upsert: false,
@@ -40,11 +50,13 @@ async function uploadOne(
     return { error: "사진 업로드에 실패했습니다." };
   }
 
-  const { data: urlData } = supabase.storage
-    .from("moobook_photos")
-    .getPublicUrl(filePath);
+  // private 버킷이므로 public URL 대신 24h signed URL 을 발급한다.
+  const signedUrl = await createUploadSignedUrl(supabase, filePath);
+  if (!signedUrl) {
+    return { error: "사진 URL 발급에 실패했습니다." };
+  }
 
-  return { url: urlData.publicUrl };
+  return { url: signedUrl };
 }
 
 export async function POST(request: NextRequest) {

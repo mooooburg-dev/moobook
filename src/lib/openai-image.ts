@@ -135,6 +135,25 @@ interface ParamErrorInfo {
 }
 
 /**
+ * 콘텐츠 정책/모더레이션에 의한 거부인지 판별한다.
+ * 이 경우에만 "사진이 부적합" 으로 사용자에게 종료 안내를 해야 하며,
+ * 그 외 오류(429/5xx/네트워크/인증/쿼터)는 일시적 시스템 오류로 재시도 대상이다.
+ */
+export function isContentPolicyError(err: unknown): boolean {
+  if (!(err instanceof APIError)) return false;
+  const code = (err.code ?? null) as string | null;
+  const type = (err.type ?? null) as string | null;
+  if (
+    code === "content_policy_violation" ||
+    code === "moderation_blocked" ||
+    type === "image_generation_user_error"
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * OpenAI APIError를 status/code/param 기반으로 분류.
  * Codex 피드백 #2: 메시지 정규식이 아니라 구조화된 필드를 본다.
  */
