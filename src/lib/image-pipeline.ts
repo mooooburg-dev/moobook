@@ -2,7 +2,7 @@ import type { ChildGender, ScenarioPage, ThemeId } from "@/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadImageBuffer } from "@/lib/storage/upload-image";
 import { fetchPreGeneratedIllustration } from "@/lib/scenarios/illustrations";
-import { editImageWithFallback } from "@/lib/openai-image";
+import { editImageWithFallback, isContentPolicyError } from "@/lib/openai-image";
 import { IMAGE_QUALITY } from "@/lib/utils/env";
 
 const BOOK_BUCKET = "moobook_photos";
@@ -203,33 +203,43 @@ async function generateSinglePage(
     references.push({ url: styleAnchorUrl as string, name: "style-anchor" });
   }
 
+  // 이미지 생성. 콘텐츠 정책 거부만 "사진 부적합"(종료)으로 취급하고,
+  // 429/5xx/네트워크/인증/쿼터 등 일시적 오류는 그대로 전파해 폴링 재시도에 맡긴다.
+  // (이전에는 모든 예외를 PhotoUnsuitableError 로 둔갑시켜, 정상 사진도 일시 오류
+  //  한 번에 영구 종료되었다.)
+  let result;
   try {
-    const result = await editImageWithFallback({
+    result = await editImageWithFallback({
       prompt: buildFaceCompositePrompt(page.emotion, hasStyleAnchor),
       references,
       size: "1024x1536",
       quality: IMAGE_QUALITY,
     });
-    const buffer = result.buffers[0];
-    if (!buffer) {
-      throw new Error("OpenAI 응답에 buffer가 없습니다.");
-    }
-    const persistedUrl = await persistComposite(
-      bookId,
-      page.pageNumber,
-      buffer
-    );
-    console.log(
-      `${tag} 사전 일러스트 + GPT Image 합성 완료 (model=${result.modelUsed}, quality=${IMAGE_QUALITY}, style_anchor=${hasStyleAnchor})`
-    );
-    return persistedUrl;
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    console.warn(`${tag} face composite 실패: ${detail}`);
-    throw new PhotoUnsuitableError(
-      page.pageNumber,
-      "face_composite_failed",
-      detail
-    );
+    if (isContentPolicyError(err)) {
+      console.warn(`${tag} 콘텐츠 정책 거부(사진 부적합): ${detail}`);
+      throw new PhotoUnsuitableError(
+        page.pageNumber,
+        "face_composite_failed",
+        detail
+      );
+    }
+    // 일시적/시스템 오류 — 재시도 가능하도록 원본 예외를 그대로 전파.
+    console.warn(`${tag} face composite 일시 오류(재시도 대상): ${detail}`);
+    throw err;
   }
+
+  const buffer = result.buffers[0];
+  if (!buffer) {
+    // 빈 응답도 일시 오류로 간주 (재시도).
+    throw new Error(`${tag} OpenAI 응답에 buffer가 없습니다.`);
+  }
+
+  // Storage 업로드 실패는 사진과 무관한 인프라 오류 → 재시도 대상. (try 밖)
+  const persistedUrl = await persistComposite(bookId, page.pageNumber, buffer);
+  console.log(
+    `${tag} 사전 일러스트 + GPT Image 합성 완료 (model=${result.modelUsed}, quality=${IMAGE_QUALITY}, style_anchor=${hasStyleAnchor})`
+  );
+  return persistedUrl;
 }
