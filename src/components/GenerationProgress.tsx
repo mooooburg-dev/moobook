@@ -1,6 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  BookOpen,
+  Brush,
+  Camera,
+  Palette,
+  Pencil,
+  Rainbow,
+  Sparkles,
+  Star,
+  type LucideIcon,
+} from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 interface GenerationProgressProps {
@@ -10,7 +21,16 @@ interface GenerationProgressProps {
   totalPages?: number;
 }
 
-const PAGE_EMOJIS = ["📷", "🎨", "🖌️", "✏️", "🌟", "📖", "✨", "🌈"];
+const PAGE_ICONS: LucideIcon[] = [
+  Camera,
+  Palette,
+  Brush,
+  Pencil,
+  Star,
+  BookOpen,
+  Sparkles,
+  Rainbow,
+];
 
 export default function GenerationProgress({
   completedPages,
@@ -31,7 +51,7 @@ export default function GenerationProgress({
   // 막기 위해, 진행률을 시간 기반 0~8% 사이로 부드럽게 채운다 (Codex #10).
   let smoothProgress: number;
   let message: string;
-  let emoji: string;
+  let Icon: LucideIcon;
   let indeterminate = false;
 
   const FIRST_PAGE_FAKE_CAP = 8;
@@ -42,7 +62,7 @@ export default function GenerationProgress({
       indeterminate = true;
       const ratio = Math.min(1, elapsed / FIRST_PAGE_FAKE_DURATION);
       smoothProgress = ratio * FIRST_PAGE_FAKE_CAP;
-      emoji = "📷";
+      Icon = Camera;
       // elapsed 단계별 메시지 변화 — 같은 줄이 30~50초 유지되는 것 방지
       if (elapsed < 8000) {
         message = "사진을 분석하고 있어요...";
@@ -57,18 +77,18 @@ export default function GenerationProgress({
       }
     } else if (completedPages < 3) {
       smoothProgress = Math.min(99, (completedPages / totalPages) * 100);
-      emoji = PAGE_EMOJIS[completedPages % PAGE_EMOJIS.length];
+      Icon = PAGE_ICONS[completedPages % PAGE_ICONS.length];
       message = `${completedPages}장 그렸어요! 다음 그림 준비 중...`;
     } else {
       smoothProgress = Math.min(99, (completedPages / totalPages) * 100);
-      emoji = PAGE_EMOJIS[completedPages % PAGE_EMOJIS.length];
+      Icon = PAGE_ICONS[completedPages % PAGE_ICONS.length];
       message = `${completedPages}장 완성! 미리보기 준비됐어요`;
     }
   } else {
     // fallback (과거 시간 기반)
     const ratio = Math.min(0.95, elapsed / 90000);
     smoothProgress = ratio * 100;
-    emoji = "🎨";
+    Icon = Palette;
     message = "AI가 그림을 그리고 있어요...";
     indeterminate = true;
   }
@@ -77,11 +97,10 @@ export default function GenerationProgress({
     <div className="w-full max-w-md mx-auto text-center page-enter">
       <div className="relative mb-8">
         <div className="w-32 h-32 mx-auto bg-peach rounded-full flex items-center justify-center shadow-inner">
-          <span className="text-6xl animate-gentle-bounce">{emoji}</span>
+          <span className="animate-gentle-bounce">
+            <Icon className="w-14 h-14 text-brand" strokeWidth={1.5} />
+          </span>
         </div>
-        <span className="absolute top-0 right-1/4 text-xl animate-twinkle" style={{ animationDelay: "0s" }}>⭐</span>
-        <span className="absolute bottom-2 left-1/4 text-lg animate-twinkle" style={{ animationDelay: "0.7s" }}>✨</span>
-        <span className="absolute top-1/4 right-1/6 text-sm animate-twinkle" style={{ animationDelay: "1.4s" }}>🌟</span>
       </div>
 
       <h2

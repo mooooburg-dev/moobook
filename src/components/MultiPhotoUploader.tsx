@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import Image from "next/image";
+import { Camera, X } from "lucide-react";
 import { validateFacePhoto } from "@/lib/utils/face-detection";
 import { Button } from "@/components/ui/button";
 
@@ -128,10 +129,10 @@ export default function MultiPhotoUploader({
                 <button
                   type="button"
                   onClick={() => removePhoto(index)}
-                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/90 text-text shadow flex items-center justify-center text-xs"
+                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/90 text-text shadow flex items-center justify-center"
                   aria-label="사진 제거"
                 >
-                  ✕
+                  <X className="w-3.5 h-3.5" strokeWidth={2.5} />
                 </button>
                 {!photo.isPrimary && (
                   <button
@@ -152,7 +153,7 @@ export default function MultiPhotoUploader({
               onClick={triggerPicker}
               className="aspect-square rounded-2xl border-2 border-dashed border-brand/30 bg-peach/30 flex flex-col items-center justify-center gap-1 text-text-light hover:border-brand/60 hover:bg-peach/50 transition-all"
             >
-              <span className="text-2xl">📷</span>
+              <Camera className="w-7 h-7 text-brand/70" strokeWidth={1.5} />
               <span className="text-[11px]">{index === 0 ? "필수" : "선택"}</span>
             </button>
           );
@@ -174,7 +175,7 @@ export default function MultiPhotoUploader({
 
       {isValidating && (
         <p className="mt-2 text-sm text-brand text-center animate-pulse">
-          ✨ 사진 확인 중...
+          사진 확인 중...
         </p>
       )}
 

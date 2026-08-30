@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import Image from "next/image";
+import { Camera } from "lucide-react";
 import { validateFacePhoto } from "@/lib/utils/face-detection";
 import { Button } from "@/components/ui/button";
 
@@ -58,11 +59,8 @@ export default function PhotoUploader({ onPhotoSelected }: PhotoUploaderProps) {
         ) : (
           <div className="flex flex-col items-center gap-3 text-text-light">
             {/* 카메라 + 액자 아이콘 */}
-            <div className="relative">
-              <div className="w-20 h-20 rounded-2xl border-3 border-dashed border-brand/40 flex items-center justify-center bg-peach/50">
-                <span className="text-4xl">📷</span>
-              </div>
-              <span className="absolute -bottom-1 -right-1 text-lg">✨</span>
+            <div className="w-20 h-20 rounded-2xl border-3 border-dashed border-brand/40 flex items-center justify-center bg-peach/50">
+              <Camera className="w-9 h-9 text-brand" strokeWidth={1.5} />
             </div>
             <span
               className="text-sm text-text"
@@ -85,7 +83,7 @@ export default function PhotoUploader({ onPhotoSelected }: PhotoUploaderProps) {
 
       {isValidating && (
         <p className="mt-3 text-sm text-brand text-center animate-pulse">
-          ✨ 사진을 확인하고 있어요...
+          사진을 확인하고 있어요...
         </p>
       )}
 

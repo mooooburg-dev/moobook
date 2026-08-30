@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
+import { Check, Frown, ScanFace, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { BookStatus } from "@/types";
 
@@ -202,7 +203,9 @@ export default function FaceSelectPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-12 page-enter">
       <div className="text-center mb-8">
-        <div className="text-4xl mb-3">🪞</div>
+        <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-white shadow-md flex items-center justify-center">
+          <ScanFace className="w-7 h-7 text-brand" strokeWidth={1.75} />
+        </div>
         <h1
           className="text-3xl text-text"
           style={{ fontFamily: "var(--font-heading)" }}
@@ -216,7 +219,9 @@ export default function FaceSelectPage() {
 
       {isGenerating && (
         <div className="bg-peach/40 border border-brand/20 rounded-2xl p-8 text-center">
-          <div className="text-3xl mb-3 animate-pulse">✨</div>
+          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white/70 flex items-center justify-center animate-pulse">
+            <Sparkles className="w-6 h-6 text-brand" strokeWidth={1.75} />
+          </div>
           <p
             className="text-text text-base mb-1"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -267,7 +272,7 @@ export default function FaceSelectPage() {
                 onClick={handleRetry}
                 disabled={isRetrying}
               >
-                {isRetrying ? "다시 시도 중..." : "🔄 처음부터 다시"}
+                {isRetrying ? "다시 시도 중..." : "처음부터 다시"}
               </Button>
             </div>
           )}
@@ -276,7 +281,9 @@ export default function FaceSelectPage() {
 
       {isFailed && (
         <div className="bg-brand-pink/10 border border-brand-pink/30 rounded-2xl p-8 text-center">
-          <div className="text-3xl mb-3">😢</div>
+          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-brand-pink/10 flex items-center justify-center">
+            <Frown className="w-6 h-6 text-brand-pink" strokeWidth={1.75} />
+          </div>
           <p
             className="text-text text-base mb-2"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -321,8 +328,8 @@ export default function FaceSelectPage() {
                     unoptimized
                   />
                   {selected && (
-                    <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center text-sm shadow">
-                      ✓
+                    <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center shadow">
+                      <Check className="w-4 h-4" strokeWidth={3} />
                     </div>
                   )}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/40 to-transparent text-white text-xs py-1.5 text-center">
@@ -340,8 +347,8 @@ export default function FaceSelectPage() {
               onClick={handleConfirm}
             >
               {isConfirming
-                ? "✨ 동화책 만들기 시작..."
-                : "이 얼굴로 동화책 만들기 →"}
+                ? "동화책 만들기 시작..."
+                : "이 얼굴로 동화책 만들기"}
             </Button>
             <Button
               variant="outline"
@@ -349,7 +356,7 @@ export default function FaceSelectPage() {
               onClick={handleRetry}
               disabled={isRetrying || isConfirming}
             >
-              {isRetrying ? "재생성 중..." : "🔄 다시 만들기"}
+              {isRetrying ? "재생성 중..." : "다시 만들기"}
             </Button>
           </div>
         </>

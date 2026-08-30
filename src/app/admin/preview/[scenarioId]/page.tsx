@@ -680,12 +680,12 @@ export default function AdminPreviewDetailPage() {
               options={[
                 {
                   value: "boy" as ChildGender,
-                  label: "👦 남아",
+                  label: "남아",
                   activeClass: "bg-blue-600 text-white",
                 },
                 {
                   value: "girl" as ChildGender,
-                  label: "👧 여아",
+                  label: "여아",
                   activeClass: "bg-pink-500 text-white",
                 },
               ]}

@@ -28,64 +28,6 @@ const categoryLabel: Record<ScenarioCategory, string> = {
   science: "과학",
 };
 
-const emotionEmoji: Record<string, string> = {
-  curious: "🧐",
-  excited: "🤩",
-  amazed: "😲",
-  wonder: "✨",
-  awe: "😮",
-  intrigued: "🤔",
-  determined: "💪",
-  worried: "😟",
-  grateful: "🙏",
-  joyful: "😊",
-  thrilled: "🎉",
-  touched: "🥹",
-  happy: "😄",
-  hopeful: "🌟",
-  delighted: "😋",
-  brave: "🦸",
-  relieved: "😌",
-  content: "☺️",
-  concerned: "😥",
-  tender: "💕",
-  proud: "🏆",
-  surprised: "😯",
-  compassionate: "🤗",
-  kind: "💝",
-  shy: "😊",
-  nervous: "😬",
-  envious: "😣",
-  encouraged: "👏",
-  confident: "😎",
-  friendly: "🤝",
-  growing: "🌱",
-  moved: "😢",
-  focused: "🎯",
-  embarrassed: "😅",
-  anticipating: "⏳",
-  loving: "❤️",
-  fascinated: "🔍",
-  thoughtful: "💭",
-  satisfied: "😊",
-  empathetic: "💙",
-  patient: "🕊️",
-  ecstatic: "🎊",
-  challenged: "⚡",
-  honored: "👑",
-  helpful: "🤲",
-  caring: "💗",
-  gentle: "🕊️",
-  flustered: "😵",
-  comforted: "🫂",
-  enlightened: "💡",
-  peaceful: "😴",
-};
-
-function getEmoji(emotion: string): string {
-  return emotionEmoji[emotion] || "🎭";
-}
-
 export default function AdminScenarioDetailPage() {
   const params = useParams();
   const id = params.id as ThemeId;
@@ -206,11 +148,8 @@ export default function AdminScenarioDetailPage() {
 
                     <div className="flex-1 min-w-0 space-y-2">
                       <div className="flex items-start gap-2">
-                        <span
-                          className="shrink-0 text-lg"
-                          title={page.emotion}
-                        >
-                          {getEmoji(page.emotion)}
+                        <span className="shrink-0 mt-0.5 text-[10px] uppercase tracking-wide bg-muted rounded px-1.5 py-0.5 text-muted-foreground">
+                          {page.emotion}
                         </span>
                         <p className="leading-relaxed">
                           {previewText(page.text)}

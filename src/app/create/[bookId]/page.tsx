@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Camera, Frown, Sparkles } from "lucide-react";
 import GenerationProgress from "@/components/GenerationProgress";
 import BookPreview, { type BookPreviewPage } from "@/components/BookPreview";
 import { Button } from "@/components/ui/button";
@@ -199,7 +200,9 @@ export default function BookDetailPage() {
   if (error) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center page-enter">
-        <div className="text-4xl mb-4">😢</div>
+        <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-brand-pink/10 flex items-center justify-center">
+          <Frown className="w-7 h-7 text-brand-pink" strokeWidth={1.75} />
+        </div>
         <p className="text-brand-pink mb-4">{error}</p>
         <Button onClick={() => router.push("/create")}>다시 시작하기</Button>
       </div>
@@ -209,7 +212,9 @@ export default function BookDetailPage() {
   if (book?.status === "photo_unsuitable") {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center page-enter">
-        <div className="text-4xl mb-4">📷</div>
+        <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-peach flex items-center justify-center">
+          <Camera className="w-7 h-7 text-brand" strokeWidth={1.75} />
+        </div>
         <h1
           className="text-xl text-text mb-3"
           style={{ fontFamily: "var(--font-heading)" }}
@@ -252,7 +257,9 @@ export default function BookDetailPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 page-enter">
       <div className="text-center mb-8">
-        <div className="text-3xl mb-2">✨</div>
+        <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-white shadow-md flex items-center justify-center">
+          <Sparkles className="w-6 h-6 text-brand" strokeWidth={1.75} />
+        </div>
         <h1
           className="text-2xl text-text"
           style={{ fontFamily: "var(--font-heading)" }}
@@ -260,7 +267,7 @@ export default function BookDetailPage() {
           미리보기
         </h1>
         <p className="text-text-light mt-1">
-          {book.child_name}의 동화책이 준비되었어요! 📖
+          {book.child_name}의 동화책이 준비되었어요!
         </p>
       </div>
 
@@ -297,12 +304,12 @@ export default function BookDetailPage() {
             size="lg"
             onClick={() => router.push(`/create/${params.bookId}/checkout`)}
           >
-            📚 전체 동화책 구매하기
+            전체 동화책 구매하기
           </Button>
         ) : (
           <div className="space-y-2">
             <Button size="lg" disabled>
-              📚 동화책 만드는 중... (
+              동화책 만드는 중... (
               {allCount} / {isPaid ? totalPages : PREVIEW_PAGE_COUNT_BEFORE_PAYMENT}
               )
             </Button>

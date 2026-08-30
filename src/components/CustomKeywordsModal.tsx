@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CustomKeywordsModalProps {
@@ -77,14 +78,14 @@ export default function CustomKeywordsModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative h-40 overflow-hidden sm:rounded-t-3xl rounded-t-3xl bg-gradient-to-br from-brand/20 to-brand-secondary/20 flex items-center justify-center">
-          <div className="text-6xl">✨</div>
+          <Sparkles className="w-14 h-14 text-brand" strokeWidth={1.25} />
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center text-text-light text-xl"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center text-text-light"
             aria-label="닫기"
           >
-            ✕
+            <X className="w-5 h-5" strokeWidth={2} />
           </button>
         </div>
 

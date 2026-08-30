@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import { CreditCard } from "lucide-react";
 import PricingTable from "@/components/PricingTable";
 import { Button } from "@/components/ui/button";
 import type { OrderTier } from "@/types";
@@ -34,7 +35,9 @@ export default function CheckoutPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 page-enter">
       <div className="text-center mb-10">
-        <div className="text-4xl mb-3">💳</div>
+        <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-white shadow-md flex items-center justify-center">
+          <CreditCard className="w-7 h-7 text-brand" strokeWidth={1.75} />
+        </div>
         <h1
           className="text-2xl text-text"
           style={{ fontFamily: "var(--font-heading)" }}
@@ -55,7 +58,7 @@ export default function CheckoutPage() {
             disabled={isProcessing}
             onClick={handlePayment}
           >
-            {isProcessing ? "✨ 결제 처리 중..." : "💳 결제하기"}
+            {isProcessing ? "결제 처리 중..." : "결제하기"}
           </Button>
         </div>
       )}
