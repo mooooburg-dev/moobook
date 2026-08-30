@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { BookOpen, Camera, Palette } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import SampleGallery from "@/components/SampleGallery";
 
@@ -37,49 +38,6 @@ function WaveDivider({
           fill={fillTo}
         />
       </svg>
-    </div>
-  );
-}
-
-function FloatingDecorations() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <span
-        className="absolute top-[10%] left-[8%] text-3xl animate-float opacity-40"
-        style={{ animationDelay: '0s' }}
-      >
-        ⭐
-      </span>
-      <span
-        className="absolute top-[15%] right-[12%] text-2xl animate-float opacity-30"
-        style={{ animationDelay: '1s' }}
-      >
-        🌙
-      </span>
-      <span
-        className="absolute top-[40%] left-[5%] text-2xl animate-float opacity-25"
-        style={{ animationDelay: '2s' }}
-      >
-        ☁️
-      </span>
-      <span
-        className="absolute top-[60%] right-[8%] text-3xl animate-float opacity-30"
-        style={{ animationDelay: '0.5s' }}
-      >
-        ✨
-      </span>
-      <span
-        className="absolute bottom-[20%] left-[15%] text-2xl animate-float opacity-35"
-        style={{ animationDelay: '1.5s' }}
-      >
-        🌟
-      </span>
-      <span
-        className="absolute bottom-[10%] right-[20%] text-2xl animate-float opacity-25"
-        style={{ animationDelay: '2.5s' }}
-      >
-        ☁️
-      </span>
     </div>
   );
 }
@@ -157,8 +115,6 @@ export default function Home() {
           }}
         />
 
-        <FloatingDecorations />
-
         <div className="max-w-5xl mx-auto w-full relative z-10">
           {/* 좌측 텍스트 + CTA */}
           <div className="max-w-xl text-center sm:text-left">
@@ -196,11 +152,11 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center sm:justify-start">
               <Link href="/create">
-                <Button size="lg">📖 지금 만들기</Button>
+                <Button size="lg">지금 만들기</Button>
               </Link>
             </div>
             <p className="mt-4 text-sm text-text-light">
-              ✨ 3장 무료 미리보기 · 회원가입 없이 바로 시작
+              3장 무료 미리보기 · 회원가입 없이 바로 시작
             </p>
           </div>
         </div>
@@ -236,29 +192,32 @@ export default function Home() {
             {[
               {
                 step: '1',
-                emoji: '📸',
+                Icon: Camera,
+                iconColor: 'text-brand',
                 title: '사진 업로드',
                 desc: '아이의 정면 사진 1장을 올려주세요',
                 color: 'bg-brand',
               },
               {
                 step: '2',
-                emoji: '🎨',
+                Icon: Palette,
+                iconColor: 'text-brand-secondary',
                 title: '테마 선택',
                 desc: '10가지 테마와 나만의 커스텀 이야기 중 선택!',
                 color: 'bg-brand-secondary',
               },
               {
                 step: '3',
-                emoji: '📖',
+                Icon: BookOpen,
+                iconColor: 'text-brand-blue',
                 title: '동화책 완성',
                 desc: '무료 미리보기 3장을 보고, 결제하면 12페이지 완성',
                 color: 'bg-brand-blue',
               },
             ].map((item) => (
               <div key={item.step} className="relative z-10">
-                <div className="w-24 h-24 mx-auto rounded-full bg-white shadow-lg flex items-center justify-center text-5xl border-4 border-white">
-                  {item.emoji}
+                <div className="w-24 h-24 mx-auto rounded-full bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                  <item.Icon className={`w-10 h-10 ${item.iconColor}`} strokeWidth={1.75} />
                 </div>
                 <div
                   className={`w-8 h-8 mx-auto -mt-3 rounded-full ${item.color} text-white flex items-center justify-center text-sm font-bold shadow-md`}
@@ -294,13 +253,15 @@ export default function Home() {
             가격 안내
           </h2>
           <p className="text-text-light mb-10">
-            미리보기는 무료! 마음에 드시면 결제해주세요 💛
+            미리보기는 무료! 마음에 드시면 결제해주세요
           </p>
 
           <div className="max-w-md mx-auto">
             {/* 소프트커버 책 */}
             <div className="bg-white rounded-3xl shadow-lg p-8 border-2 border-brand relative overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              <div className="text-4xl mb-3">📚</div>
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-cream flex items-center justify-center">
+                <BookOpen className="w-7 h-7 text-brand" strokeWidth={1.75} />
+              </div>
               <h3
                 className="text-lg text-text"
                 style={{ fontFamily: 'var(--font-heading)' }}
@@ -321,7 +282,9 @@ export default function Home() {
 
       {/* CTA 섹션 */}
       <section className="w-full py-16 px-4 bg-linear-to-b from-cream to-peach text-center">
-        <div className="text-5xl mb-4 animate-gentle-bounce">📖</div>
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white shadow-md flex items-center justify-center">
+          <BookOpen className="w-8 h-8 text-brand" strokeWidth={1.75} />
+        </div>
         <h2
           className="text-2xl sm:text-3xl text-text mb-4"
           style={{ fontFamily: 'var(--font-heading)' }}
@@ -332,7 +295,7 @@ export default function Home() {
           사진 한 장이면 무료 미리보기 3장을 받아볼 수 있어요
         </p>
         <Link href="/create">
-          <Button size="lg">✨ 동화책 만들기 시작</Button>
+          <Button size="lg">동화책 만들기 시작</Button>
         </Link>
       </section>
     </div>

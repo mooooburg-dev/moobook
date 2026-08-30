@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Baby, Palette, Sparkles } from "lucide-react";
 import MultiPhotoUploader, {
   type UploadedPhoto,
 } from "@/components/MultiPhotoUploader";
@@ -114,7 +115,9 @@ export default function CreatePage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 page-enter">
       <div className="text-center mb-8">
-        <div className="text-4xl mb-3">🎨</div>
+        <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-white shadow-md flex items-center justify-center">
+          <Palette className="w-7 h-7 text-brand" strokeWidth={1.75} />
+        </div>
         <h1
           className="text-3xl text-text"
           style={{ fontFamily: "var(--font-heading)" }}
@@ -127,9 +130,7 @@ export default function CreatePage() {
       </div>
 
       <div className="mb-10 flex items-center justify-center gap-3 bg-linear-to-r from-brand/10 via-brand-secondary/10 to-brand-blue/10 border border-brand/20 rounded-2xl px-5 py-4">
-        <span className="text-2xl" aria-hidden>
-          ✨
-        </span>
+        <Sparkles className="w-6 h-6 text-brand shrink-0" strokeWidth={1.75} aria-hidden />
         <div className="text-left">
           <p
             className="text-sm text-text"
@@ -208,8 +209,8 @@ export default function CreatePage() {
         <div className="grid grid-cols-2 gap-3 max-w-md mx-auto">
           {(
             [
-              { id: "boy" as const, emoji: "👦", label: "남자아이" },
-              { id: "girl" as const, emoji: "👧", label: "여자아이" },
+              { id: "boy" as const, iconBg: "bg-blue-50", iconColor: "text-brand-blue", label: "남자아이" },
+              { id: "girl" as const, iconBg: "bg-pink-50", iconColor: "text-brand-pink", label: "여자아이" },
             ]
           ).map((opt) => {
             const selected = childGender === opt.id;
@@ -224,7 +225,9 @@ export default function CreatePage() {
                     : "border-brand/20 hover:border-brand/50"
                 }`}
               >
-                <span className="text-4xl">{opt.emoji}</span>
+                <span className={`w-14 h-14 rounded-full ${opt.iconBg} flex items-center justify-center`}>
+                  <Baby className={`w-7 h-7 ${opt.iconColor}`} strokeWidth={1.75} />
+                </span>
                 <span
                   className="text-sm text-text"
                   style={{ fontFamily: "var(--font-body)" }}
@@ -289,8 +292,8 @@ export default function CreatePage() {
           onClick={handleSubmit}
         >
           {isSubmitting
-            ? "✨ 사진 업로드 중..."
-            : "📖 다음 단계: 얼굴 고르기"}
+            ? "사진 업로드 중..."
+            : "다음 단계: 얼굴 고르기"}
         </Button>
       </div>
     </div>

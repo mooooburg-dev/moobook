@@ -1,6 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Backpack,
+  Bath,
+  Cake,
+  Check,
+  ChefHat,
+  Fish,
+  Footprints,
+  Heart,
+  Microscope,
+  Mountain,
+  PartyPopper,
+  PawPrint,
+  Rocket,
+  Smile,
+  Sparkles,
+  Sun,
+  TreePine,
+  type LucideIcon,
+} from "lucide-react";
 import { getScenariosByCategory } from "@/lib/scenarios";
 import type { ChildGender, Scenario, ScenarioCategory, ThemeId } from "@/types";
 import ScenarioPreviewModal from "./ScenarioPreviewModal";
@@ -17,75 +37,85 @@ interface ThemeSelectorProps {
 
 type PresetThemeConfigId = Exclude<ThemeId, "custom">;
 
-const themeConfig: Record<PresetThemeConfigId, { emoji: string; bgColor: string; borderColor: string; selectedBg: string }> = {
+const themeConfig: Record<PresetThemeConfigId, { icon: LucideIcon; iconColor: string; bgColor: string; borderColor: string; selectedBg: string }> = {
   "forest-adventure": {
-    emoji: "🌳",
+    icon: TreePine,
+    iconColor: "text-green-600",
     bgColor: "bg-green-50",
     borderColor: "border-brand-secondary",
     selectedBg: "bg-green-50",
   },
   "ocean-friends": {
-    emoji: "🐠",
+    icon: Fish,
+    iconColor: "text-cyan-600",
     bgColor: "bg-cyan-50",
     borderColor: "border-cyan-400",
     selectedBg: "bg-cyan-50",
   },
   "brushing-hero": {
-    emoji: "🪥",
+    icon: Smile,
+    iconColor: "text-teal-600",
     bgColor: "bg-mint-50",
     borderColor: "border-teal-400",
     selectedBg: "bg-teal-50",
   },
   "bath-mission": {
-    emoji: "🛁",
+    icon: Bath,
+    iconColor: "text-blue-600",
     bgColor: "bg-blue-50",
     borderColor: "border-blue-400",
     selectedBg: "bg-blue-50",
   },
   "cooking-magic": {
-    emoji: "🧁",
+    icon: ChefHat,
+    iconColor: "text-rose-600",
     bgColor: "bg-rose-50",
     borderColor: "border-rose-400",
     selectedBg: "bg-rose-50",
   },
   "animal-school": {
-    emoji: "🐻",
+    icon: PawPrint,
+    iconColor: "text-yellow-600",
     bgColor: "bg-yellow-50",
     borderColor: "border-yellow-400",
     selectedBg: "bg-yellow-50",
   },
   "first-day-school": {
-    emoji: "🎒",
+    icon: Backpack,
+    iconColor: "text-amber-600",
     bgColor: "bg-amber-50",
     borderColor: "border-amber-400",
     selectedBg: "bg-amber-50",
   },
   "birthday-adventure": {
-    emoji: "🎂",
+    icon: Cake,
+    iconColor: "text-pink-600",
     bgColor: "bg-pink-50",
     borderColor: "border-pink-400",
     selectedBg: "bg-pink-50",
   },
   "space-explorer": {
-    emoji: "🚀",
+    icon: Rocket,
+    iconColor: "text-indigo-600",
     bgColor: "bg-indigo-50",
     borderColor: "border-brand-blue",
     selectedBg: "bg-indigo-50",
   },
   "dinosaur-world": {
-    emoji: "🦕",
+    icon: Footprints,
+    iconColor: "text-amber-700",
     bgColor: "bg-amber-50",
     borderColor: "border-amber-400",
     selectedBg: "bg-amber-50",
   },
 };
 
-const categoryEmoji: Record<ScenarioCategory, string> = {
-  adventure: "🏔️",
-  "daily-life": "🌟",
-  emotion: "💛",
-  celebration: "🎂",
-  science: "🔬",
+const categoryIcon: Record<ScenarioCategory, LucideIcon> = {
+  adventure: Mountain,
+  "daily-life": Sun,
+  emotion: Heart,
+  celebration: PartyPopper,
+  science: Microscope,
 };
 
 export default function ThemeSelector({
@@ -142,7 +172,7 @@ export default function ThemeSelector({
             className="text-base text-text-light mb-3 flex items-center gap-2"
             style={{ fontFamily: "var(--font-heading)" }}
           >
-            <span>✨</span>
+            <Sparkles className="w-4 h-4 text-brand" strokeWidth={1.75} />
             <span>우리 아이만의 이야기</span>
           </h3>
           <div
@@ -154,8 +184,8 @@ export default function ThemeSelector({
             onClick={onSelectCustom}
           >
             <div className="flex items-center gap-5">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand/20 to-brand-secondary/30 flex items-center justify-center text-5xl shrink-0 shadow-inner">
-                ✨
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand/20 to-brand-secondary/30 flex items-center justify-center shrink-0 shadow-inner">
+                <Sparkles className="w-9 h-9 text-brand" strokeWidth={1.5} />
               </div>
               <div className="flex-1 min-w-0">
                 <h3
@@ -187,10 +217,11 @@ export default function ThemeSelector({
                 )}
                 {isCustomSelected && (
                   <div
-                    className="mt-2 text-brand text-sm"
+                    className="mt-2 text-brand text-sm flex items-center gap-1"
                     style={{ fontFamily: "var(--font-heading)" }}
                   >
-                    ✓ 선택됨
+                    <Check className="w-4 h-4" strokeWidth={3} />
+                    선택됨
                   </div>
                 )}
               </div>
@@ -204,7 +235,10 @@ export default function ThemeSelector({
             className="text-base text-text-light mb-3 flex items-center gap-2"
             style={{ fontFamily: "var(--font-heading)" }}
           >
-            <span>{categoryEmoji[category]}</span>
+            {(() => {
+              const CategoryIcon = categoryIcon[category];
+              return <CategoryIcon className="w-4 h-4 text-brand" strokeWidth={1.75} />;
+            })()}
             <span>{label}</span>
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -225,7 +259,7 @@ export default function ThemeSelector({
                   onClick={() => onSelect(scenario.id)}
                 >
                   <div
-                    className={`w-20 h-20 mx-auto rounded-full ${config.bgColor} flex items-center justify-center text-5xl mb-3 shadow-inner overflow-hidden`}
+                    className={`w-20 h-20 mx-auto rounded-full ${config.bgColor} flex items-center justify-center mb-3 shadow-inner overflow-hidden`}
                   >
                     {thumbnail ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
@@ -235,7 +269,7 @@ export default function ThemeSelector({
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      config.emoji
+                      <config.icon className={`w-9 h-9 ${config.iconColor}`} strokeWidth={1.5} />
                     )}
                   </div>
                   <h3
@@ -249,8 +283,9 @@ export default function ThemeSelector({
                     {scenario.targetAge} / {scenario.pageCount}페이지
                   </p>
                   {isSelected && (
-                    <div className="mt-3 text-brand text-sm" style={{ fontFamily: "var(--font-heading)" }}>
-                      ✓ 선택됨
+                    <div className="mt-3 text-brand text-sm flex items-center justify-center gap-1" style={{ fontFamily: "var(--font-heading)" }}>
+                      <Check className="w-4 h-4" strokeWidth={3} />
+                      선택됨
                     </div>
                   )}
                   <button

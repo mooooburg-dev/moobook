@@ -387,7 +387,7 @@ export default function AdminBackgroundDetailPage() {
                     : "text-muted-foreground hover:bg-muted"
                 )}
               >
-                👦 남아
+                남아
               </button>
               <button
                 type="button"
@@ -399,7 +399,7 @@ export default function AdminBackgroundDetailPage() {
                     : "text-muted-foreground hover:bg-muted"
                 )}
               >
-                👧 여아
+                여아
               </button>
             </div>
           </div>
@@ -631,7 +631,7 @@ export default function AdminBackgroundDetailPage() {
                   )}
                   {isFirstPage && (
                     <p className="text-[10px] text-amber-700 bg-amber-50 rounded px-2 py-1 leading-snug">
-                      ⚠️ 1페이지를 재생성하면 2~12페이지도 다시 생성해야
+                      1페이지를 재생성하면 2~12페이지도 다시 생성해야
                       캐릭터 일관성이 맞습니다.
                     </p>
                   )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { BookOpen, Heart, Lock, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { replaceChildName } from "@/lib/utils/korean-name";
 import { wrapTextWithCanvas } from "@/lib/utils/wrap-text";
@@ -106,7 +107,7 @@ export default function BookPreview({
             </>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-text-lighter gap-2">
-              <span className="text-3xl animate-pulse">📖</span>
+              <BookOpen className="w-8 h-8 animate-pulse" strokeWidth={1.5} />
               <span className="text-sm">이미지 로딩 중...</span>
             </div>
           )}
@@ -130,7 +131,7 @@ export default function BookPreview({
           {isLockedPage && (
             <div className="absolute inset-0 bg-black/45 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="text-center text-white px-6 bg-black/35 rounded-2xl py-6 max-w-xs">
-                <span className="text-3xl block mb-2">🔒</span>
+                <Lock className="w-8 h-8 mx-auto mb-2" strokeWidth={1.75} />
                 <p
                   className="text-lg"
                   style={{ fontFamily: "var(--font-heading)" }}
@@ -144,10 +145,19 @@ export default function BookPreview({
                 <div className="text-2xl mb-1" style={{ fontFamily: "var(--font-heading)" }}>
                   {formatKrw(SOFTCOVER_PRICE)}
                 </div>
-                <ul className="text-xs opacity-80 space-y-0.5 mb-4">
-                  <li>📚 {totalPages}페이지 실물 소프트커버</li>
-                  <li>🚚 배송비 무료</li>
-                  <li>💛 세상에 하나뿐인 우리 아이 동화책</li>
+                <ul className="text-xs opacity-80 space-y-1 mb-4">
+                  <li className="flex items-center justify-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5" strokeWidth={2} />
+                    {totalPages}페이지 실물 소프트커버
+                  </li>
+                  <li className="flex items-center justify-center gap-1.5">
+                    <Truck className="w-3.5 h-3.5" strokeWidth={2} />
+                    배송비 무료
+                  </li>
+                  <li className="flex items-center justify-center gap-1.5">
+                    <Heart className="w-3.5 h-3.5" strokeWidth={2} />
+                    세상에 하나뿐인 우리 아이 동화책
+                  </li>
                 </ul>
 
                 {onCheckout && (
@@ -156,7 +166,7 @@ export default function BookPreview({
                     onClick={onCheckout}
                     className="w-full bg-brand hover:bg-brand-pink text-white"
                   >
-                    📖 전체 동화책 구매하기
+                    전체 동화책 구매하기
                   </Button>
                 )}
               </div>

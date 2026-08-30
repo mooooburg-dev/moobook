@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { BookOpen, Heart, X } from "lucide-react";
 import type { Scenario } from "@/types";
 import { Button } from "@/components/ui/button";
 
@@ -10,29 +11,6 @@ interface ScenarioPreviewModalProps {
   onClose: () => void;
   onSelect: () => void;
 }
-
-const emotionEmoji: Record<string, string> = {
-  excited: "✨",
-  curious: "🧐",
-  wonder: "🌟",
-  awe: "😮",
-  intrigued: "🤔",
-  determined: "💪",
-  worried: "😟",
-  grateful: "🙏",
-  joyful: "😊",
-  thrilled: "🤩",
-  touched: "🥰",
-  happy: "😄",
-  brave: "🦁",
-  proud: "🏆",
-  calm: "😌",
-  surprised: "😲",
-  nervous: "😬",
-  confident: "😎",
-  loved: "💖",
-  sleepy: "😴",
-};
 
 function pickBeats(scenario: Scenario) {
   const { pages } = scenario;
@@ -85,17 +63,17 @@ export default function ScenarioPreviewModal({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-7xl">
-              📖
+            <div className="w-full h-full flex items-center justify-center">
+              <BookOpen className="w-16 h-16 text-brand/60" strokeWidth={1.25} />
             </div>
           )}
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center text-text-light text-xl"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center text-text-light"
             aria-label="닫기"
           >
-            ✕
+            <X className="w-5 h-5" strokeWidth={2} />
           </button>
           <div className="absolute top-4 left-4 bg-white/90 rounded-full px-3 py-1 text-xs text-text-light">
             {scenario.targetAge} · {scenario.pageCount}페이지
@@ -116,8 +94,9 @@ export default function ScenarioPreviewModal({
           </div>
 
           <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
-            <div className="text-xs text-amber-700 mb-1" style={{ fontFamily: "var(--font-heading)" }}>
-              💛 이 이야기가 전하는 메시지
+            <div className="text-xs text-amber-700 mb-1 flex items-center gap-1" style={{ fontFamily: "var(--font-heading)" }}>
+              <Heart className="w-3.5 h-3.5" strokeWidth={2} />
+              이 이야기가 전하는 메시지
             </div>
             <p className="text-sm text-text leading-relaxed">
               {scenario.educationMessage}
@@ -147,8 +126,7 @@ export default function ScenarioPreviewModal({
                       className="text-xs text-text-lighter mb-1"
                       style={{ fontFamily: "var(--font-heading)" }}
                     >
-                      {beatLabels[idx]}{" "}
-                      <span>{emotionEmoji[page.emotion] ?? "✨"}</span>
+                      {beatLabels[idx]}
                     </div>
                     <p className="text-sm text-text leading-relaxed">
                       {page.sceneDescription}

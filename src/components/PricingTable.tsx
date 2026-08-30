@@ -1,3 +1,4 @@
+import { BookOpen, Check, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { OrderTier } from "@/types";
 import { SOFTCOVER_PRICE } from "@/lib/pricing";
@@ -6,11 +7,21 @@ interface PricingTableProps {
   onSelect: (tier: OrderTier) => void;
 }
 
-const tiers = [
+const tiers: Array<{
+  id: OrderTier;
+  name: string;
+  icon: LucideIcon;
+  price: number;
+  description: string;
+  features: string[];
+  popular: boolean;
+  borderColor: string;
+  checkColor: string;
+}> = [
   {
-    id: "softcover" as OrderTier,
+    id: "softcover",
     name: "소프트커버 책",
-    emoji: "📚",
+    icon: BookOpen,
     price: SOFTCOVER_PRICE,
     description: "실물 동화책 배송",
     features: [
@@ -38,7 +49,9 @@ export default function PricingTable({ onSelect }: PricingTableProps) {
             </div>
           )}
 
-          <div className="text-4xl mb-2">{tier.emoji}</div>
+          <div className="w-14 h-14 mx-auto mb-2 rounded-full bg-peach flex items-center justify-center">
+            <tier.icon className="w-7 h-7 text-brand" strokeWidth={1.75} />
+          </div>
           <h3
             className="text-lg text-text mt-2"
             style={{ fontFamily: "var(--font-heading)" }}
@@ -60,7 +73,7 @@ export default function PricingTable({ onSelect }: PricingTableProps) {
           <ul className="text-sm text-text-light space-y-2 mb-6 text-left">
             {tier.features.map((feature) => (
               <li key={feature} className="flex items-center gap-2">
-                <span className={tier.checkColor}>✓</span>
+                <Check className={`w-4 h-4 shrink-0 ${tier.checkColor}`} strokeWidth={3} />
                 {feature}
               </li>
             ))}
