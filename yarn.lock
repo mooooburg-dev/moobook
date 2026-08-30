@@ -1141,6 +1141,11 @@
     postcss "^8.5.6"
     tailwindcss "4.2.2"
 
+"@tosspayments/tosspayments-sdk@^2.8.1":
+  version "2.8.1"
+  resolved "https://registry.yarnpkg.com/@tosspayments/tosspayments-sdk/-/tosspayments-sdk-2.8.1.tgz#14b887fc87d735305c1d5f0f37a7bc16b00903ff"
+  integrity sha512-DE3PPZZQqa/fb972VgDkuSLtj04gqsjAar111adWK18Yf9Ad7Bk6m+9OH5RBtkHdreCgbR/zZfuy6dL1cfveJQ==
+
 "@tybys/wasm-util@^0.10.0", "@tybys/wasm-util@^0.10.1":
   version "0.10.1"
   resolved "https://registry.yarnpkg.com/@tybys/wasm-util/-/wasm-util-0.10.1.tgz#ecddd3205cf1e2d5274649ff0eedd2991ed7f414"
